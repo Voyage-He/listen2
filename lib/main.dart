@@ -39,20 +39,15 @@ class App extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.read(playerPrvd);
+    var p = player;
 
     return GestureDetector(
       onTap: () => Focus.of(context).requestFocus(FocusNode()),
       onVerticalDragStart: (_) => Focus.of(context).requestFocus(FocusNode()),
       // onDrag
-      child: Column(
-        children: [
-          Expanded(child: Container(
-            width: double.infinity,
-            color: Colors.white,
-            child: const Text("appbar"))),
-          Expanded(flex: 10,child: child)
-        ],
+      child: Container(
+        color: Colors.white,
+        child: SafeArea(child: child)
       )
     );
   }

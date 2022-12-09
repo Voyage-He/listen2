@@ -28,7 +28,7 @@ class _ButtonState extends State<Button> {
       onTapCancel: () => setState(() { widget.taped = false; }),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 100),
-        padding: widget.circle ? (widget.taped ? const EdgeInsets.all(40) : const EdgeInsets.all(41)) : EdgeInsets.all(5),
+        padding: widget.circle ? (widget.taped ? const EdgeInsets.all(10) : const EdgeInsets.all(11)) : EdgeInsets.all(5),
         decoration: BoxDecoration(
           shape: widget.circle ? BoxShape.circle : BoxShape.rectangle,
           color: Colors.blue

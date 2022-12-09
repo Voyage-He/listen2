@@ -12,8 +12,7 @@ class Home extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
-      padding: const EdgeInsets.only(top: 30.0),
-      decoration: const BoxDecoration(color: Colors.white),
+      // decoration: const BoxDecoration(color: Colors.white),
       child: Stack(
         children: [
           Row(

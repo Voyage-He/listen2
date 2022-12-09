@@ -1,41 +1,57 @@
-import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter/foundation.dart';
+import 'package:audioplayers/audioplayers.dart' as ad;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:music_api/music_api.dart';
 
 import '../track/Track.data.dart';
 
-// TODO
-// CurrentTrackProvider, StatusProvider
-// and put them into MultiProvier to manage player
+final player = ad.AudioPlayer();
 
-final playerPrvd = StateNotifierProvider<Player, PlayerStatus>((ref) => Player() );
+final playerStateProvider = StateNotifierProvider<PlayerStateNotifier, PlayerState>((ref) => PlayerStateNotifier());
 
-enum PlayerStatus{
-  empty,
-  playe,
-  pause,
-  stope
+// [Player] is used because [Playerstate] identifier was used in audioplayer 
+class PlayerState {
+  ad.PlayerState state;
+  Track? currentTrack;
+  ad.Source? source;
+
+  PlayerState({
+    required this.state,
+    this.currentTrack,
+    this.source,
+  });
+
+  PlayerState copyWith({
+    ad.PlayerState? state,
+    Track? currentTrack,
+    ad.Source? source,
+  }) {
+    return PlayerState(
+      state: state ?? this.state,
+      currentTrack: currentTrack ?? this.currentTrack,
+      source: source ?? this.source,
+    );
+  }
 }
 
-class Player extends StateNotifier<PlayerStatus> {
-  final AudioPlayer player = AudioPlayer();
+class PlayerStateNotifier extends StateNotifier<PlayerState> {
 
-  Player() : super(PlayerStatus.empty){print('init===========================================================');}
-
-  Future<void> playTrack(Track track) async {
-
-    await player.stop();
-    await player.release();
-    await player.setSource(BytesSource(await trackRpstr.getBytes(track)));
-    await player.resume();
-    print("resume");
+  PlayerStateNotifier() :
+    super(PlayerState(state: player.state)) {
+    
+    player.onPlayerStateChanged.listen((e) {
+      print('listened_state$e');
+      state = state.copyWith(state: e);
+    });
   }
 
-  @override
-  void dispose() {
-    player.dispose();
-    print('dispose=====================================================');
-    super.dispose();
+  playTrack(Track track) async {
+    print('play_track${track.title}');
+    if (track == state.currentTrack) return;
+    await player.release();
+
+    state = state.copyWith(currentTrack: track);
+
+    var byteSource = ad.BytesSource(await trackRpstr.getBytes(track));
+    
+    await player.play(byteSource);
   }
 }

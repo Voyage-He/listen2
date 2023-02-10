@@ -1,0 +1,17 @@
+import 'package:bloc/bloc.dart';
+import 'package:listen2/src/repo/track.repo.dart';
+
+class SearchCubit extends Cubit<List<Track>> {
+  String _keyword = '';
+
+  SearchCubit() : super([]);
+
+  Future search() async {
+    
+    emit(await trackRepo.search(_keyword));
+  }
+
+  onKeywordChange(String keyword) {
+    _keyword = keyword;
+  }
+}

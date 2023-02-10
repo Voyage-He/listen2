@@ -4,10 +4,12 @@ import 'package:flutter/services.dart';
 class Input extends StatefulWidget {
   Input({
     super.key,
-    this.onChange
+    this.onChange,
+    this.onDone
   });
 
-  Function(String)? onChange;
+  void Function(String)? onChange;
+  void Function()? onDone;
 
   @override
   State<Input> createState() => _InputState();
@@ -19,12 +21,18 @@ class _InputState extends State<Input> {
   @override
   void initState() {
     super.initState();
-    _controller.addListener(() {
-      final String text = _controller.text;
-      if (widget.onChange != null) {
-        widget.onChange!(text);
-      }
-    });
+    // 这一段似乎没有必要？EditableText有对应的回调函数
+    // _controller.addListener(() {
+    //   final String text = _controller.text;
+    //   print('---->>>');
+    //   print(_controller.value);
+    //   print('----->>>>');
+    //   // print('object')
+    //   if (widget.onChange != null) {
+    //     widget.onChange!(text);
+        
+    //   }
+    // });
   }
 
   @override
@@ -42,7 +50,14 @@ class _InputState extends State<Input> {
         focusNode: n,
         style: const TextStyle(color: Colors.black, fontSize: 20),
         cursorColor: Colors.blue.shade700,
-        backgroundCursorColor: Colors.white10
+        backgroundCursorColor: Colors.white10,
+        textInputAction: TextInputAction.search,
+        onEditingComplete: (() {
+          n.unfocus();
+          if (widget.onDone !=null) {widget.onDone!();}
+        }),
+        onChanged: widget.onChange
+        
       )
     );
     

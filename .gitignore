@@ -45,5 +45,5 @@ app.*.map.json
 
 
 # sub package
-/packages
+# /packages
 /.vscode/

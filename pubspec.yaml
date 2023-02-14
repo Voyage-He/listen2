@@ -38,7 +38,7 @@ dependencies:
   cupertino_icons: ^1.0.2
   flutter_riverpod: ^2.1.1
   music_api:
-    path: ../music_api
+    path: ./packages/music_api
   audioplayers: ^1.1.1
   flutter_bloc: ^8.1.1
   sqflite: ^2.2.4+1

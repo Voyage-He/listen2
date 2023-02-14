@@ -222,7 +222,7 @@ packages:
   music_api:
     dependency: "direct main"
     description:
-      path: "../music_api"
+      path: "packages/music_api"
       relative: true
     source: path
     version: "0.0.1"

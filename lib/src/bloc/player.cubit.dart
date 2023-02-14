@@ -20,7 +20,7 @@ class PlayerCubit extends Cubit<PlayerState> {
 
     emit(state.copyWith(currentTrack: track));
 
-    var byteSource = ad.BytesSource(await trackRepo.getBytes(track));
+    var byteSource = ad.BytesSource(await TrackRepo().getBytes(track));
     
     await _player.play(byteSource);
   }

@@ -8,7 +8,7 @@ class SearchCubit extends Cubit<List<Track>> {
 
   Future search() async {
     
-    emit(await trackRepo.search(_keyword));
+    emit(await TrackRepo().search(_keyword));
   }
 
   onKeywordChange(String keyword) {

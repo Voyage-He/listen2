@@ -1,11 +1,8 @@
-import 'package:listen2/src/repo/track.repo.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-// https://juejin.cn/post/7030702503893139487
 
 import '../bloc/favorite.cubit.dart';
 import '../bloc/player.cubit.dart';
-import '../repo/favorite.repo.dart';
 import '../repo/track.repo.dart';
 
 class FavoratePage extends StatelessWidget {
@@ -42,7 +39,7 @@ class FavoriteTrack extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<TrackCubit, Track?>(
-      bloc: TrackCubit(trackRepo)..getTrackbyId(id), 
+      bloc: TrackCubit(TrackRepo())..getTrackbyId(id), 
       builder: (context, state) {
         const st = TextStyle(fontSize: 15);
         return GestureDetector(

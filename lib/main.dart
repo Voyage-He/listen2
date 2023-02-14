@@ -9,9 +9,19 @@ import 'src/page/home.view.dart';
 import 'src/bloc/player.cubit.dart';
 import 'src/bloc/favorite.cubit.dart';
 
+import 'src/repo/track.repo.dart';
+
+Future globalInit() async {
+  Future.wait([
+    Globals.init(),
+    TrackRepo().init()
+  ]);
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Globals.init();
+  await globalInit();
+  
   runApp(WidgetsApp(
     title: "this own title",
     color: Colors.white,

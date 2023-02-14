@@ -63,7 +63,19 @@ class Header extends StatelessWidget {
           GestureDetector(
             onTap: () {
               Navigator.of(context).push(
-                PageRouteBuilder(pageBuilder:(context, _, __) => const Search(),)
+                PageRouteBuilder(
+                  pageBuilder:(context, _, __) => const Search(),
+                  // transitionDuration: const Duration(milliseconds: 2000),
+                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                    return SlideTransition(
+                      position: Tween<Offset>(
+                        begin: Offset(1.0, 0.0),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    );
+                  },
+                )
               );
             },
             child: Icon(Icons.search, size: 30)

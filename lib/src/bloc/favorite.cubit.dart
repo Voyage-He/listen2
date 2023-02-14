@@ -35,7 +35,7 @@ class FavoriteCubit extends Cubit<List<String>> {
 }
 
 class TrackCubit extends Cubit<Track?> {
-  TrackRepository trackRepo;
+  TrackRepo trackRepo;
 
   TrackCubit(this.trackRepo) : super(null);
 

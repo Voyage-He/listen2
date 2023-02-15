@@ -1,5 +1,9 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:music_api/music_api.dart';
+import 'package:http/http.dart' as http;
+
+import 'package:listen2/src/global/main.dart';
 
 class Track {
   String bvid;
@@ -44,5 +48,20 @@ class TrackRepo {
     var res = await _client.getVideoInfo(id);
     print('from favo ${res[3]}');
     return Track(res[0], res[1], res[2], res[3]);
+  }
+  
+  Future<Uint8List> getCover(Track track) async {
+    try {
+      final bytes = await Globals.storage.temp.read('${track.bvid}/cover');
+      print('from local');
+      return bytes;
+    }
+    catch (err) {
+      // -网络请求-并且存储本地
+      final bytes = await http.readBytes(Uri.parse(track.pictureUrl));
+      await Globals.storage.temp.write('${track.bvid}/cover', bytes);
+      print('from web');
+      return bytes;
+    }
   }
 }

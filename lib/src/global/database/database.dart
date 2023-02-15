@@ -2,7 +2,7 @@ import 'package:sqflite/sqflite.dart';
 
 const String _tableTodo = 'favorite';
 
-Future<Database> createDb() async {
+Future<Database> initDb() async {
   // String dbPath = await getDatabasesPath();
   return await openDatabase(
     'mydb.db',

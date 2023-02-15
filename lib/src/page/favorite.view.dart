@@ -43,6 +43,7 @@ class FavoriteTrack extends StatelessWidget {
       builder: (context, state) {
         const st = TextStyle(fontSize: 15);
         return GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: () {
             if (state != null) context.read<PlayerCubit>().playTrack(state);
           },

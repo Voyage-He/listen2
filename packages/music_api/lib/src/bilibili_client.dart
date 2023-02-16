@@ -124,7 +124,7 @@ class BilibiliClient {
     
   }
 
-  Future<StreamedResponse> getAudioStream(String bvid) async {
+  Future<Stream> getAudioStream(String bvid) async {
     var cid = await getCid(bvid);
     var audioUrl = await getAudioUrl(bvid, cid);
 
@@ -132,6 +132,6 @@ class BilibiliClient {
     req.headers['Referer'] = 'https://www.bilibili.com';
     req.headers['Host'] = Requests.getHostname(audioUrl);
     req.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 Edg/107.0.1418.56';
-    return Client().send(req);
+    return (await Client().send(req)).stream;
   }
 }

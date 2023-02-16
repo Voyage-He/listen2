@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show Colors, Icons;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:audioplayers/audioplayers.dart' as ad;
+import 'package:listen2/src/repo/track.repo.dart';
 
 import 'search/search.view.dart';
 import 'favorite.view.dart';
@@ -109,12 +111,21 @@ class BottomPlayer extends StatelessWidget {
             child: Row(
               
               children: [
-                track != null ? Image.network(
-                  track.pictureUrl,
-                  width: 50,
-                  height: 50,
-                  errorBuilder: (context, _, __) => Container(width: 50, height: 50, color: Colors.grey,),
-                  // loadingBuilder: (context, _, __) => Container(width: 50, height: 50, color: Colors.grey,),
+                track != null ? FutureBuilder<Uint8List>(
+                  future: TrackRepo().getCover(track),
+                  builder: ((context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.done) {
+                      return Image.memory(
+                        snapshot.data!,
+                        width: 50,
+                        height: 50,
+                        errorBuilder: (context, _, __) => Container(width: 50, height: 50, color: Colors.grey,),
+                      );
+                    }
+                    else {
+                      return Container(width: 50, height: 50, color: Colors.grey,);
+                    }
+                  })
                 ) : Container(width: 50, height: 50, color: Colors.grey,),
                 Expanded(child: Text(track?.title ?? '', style: const TextStyle(fontSize: 20, overflow: TextOverflow.ellipsis))),
                 GestureDetector(

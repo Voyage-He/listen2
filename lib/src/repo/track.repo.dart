@@ -1,5 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:music_api/music_api.dart';
+import 'package:http/http.dart' as http;
+
+import 'package:listen2/src/global/main.dart';
 
 class Track {
   String bvid;
@@ -29,20 +32,41 @@ class TrackRepo {
   }
 
   Future<Uint8List> getBytes(Track track) async {
-    var res = await _client.getAudioStream(track.bvid);
-    
-    var s = res.stream;
-    List<int> bytesList = [];
-    await for (var chunk in s) {
-      bytesList.addAll(chunk);
+    try {
+      return await Globals.storage.temp.read('${track.bvid}/media');
     }
+    catch (err) {
+      final res = await _client.getAudioStream(track.bvid);
 
-    return Uint8List.fromList(bytesList);
+      // maybe for buffer feature in the future
+      List<int> bytesList = [];
+      await for (var chunk in res) {
+        bytesList.addAll(chunk);
+      }
+      final bytes = Uint8List.fromList(bytesList);
+
+      await Globals.storage.temp.write('${track.bvid}/media', bytes);
+
+      return bytes;
+    }
+    
   }
 
   Future<Track> getTrackbyId(String id) async {
     var res = await _client.getVideoInfo(id);
     print('from favo ${res[3]}');
     return Track(res[0], res[1], res[2], res[3]);
+  }
+  
+  Future<Uint8List> getCover(Track track) async {
+    try {
+      final bytes = await Globals.storage.temp.read('${track.bvid}/cover');
+      return bytes;
+    }
+    catch (err) {
+      final bytes = await http.readBytes(Uri.parse(track.pictureUrl));
+      await Globals.storage.temp.write('${track.bvid}/cover', bytes);
+      return bytes;
+    }
   }
 }

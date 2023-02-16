@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:music_api/music_api.dart';
 import 'package:http/http.dart' as http;
@@ -33,15 +32,24 @@ class TrackRepo {
   }
 
   Future<Uint8List> getBytes(Track track) async {
-    var res = await _client.getAudioStream(track.bvid);
-    
-    var s = res.stream;
-    List<int> bytesList = [];
-    await for (var chunk in s) {
-      bytesList.addAll(chunk);
+    try {
+      return await Globals.storage.temp.read('${track.bvid}/media');
     }
+    catch (err) {
+      final res = await _client.getAudioStream(track.bvid);
 
-    return Uint8List.fromList(bytesList);
+      // maybe for buffer feature in the future
+      List<int> bytesList = [];
+      await for (var chunk in res) {
+        bytesList.addAll(chunk);
+      }
+      final bytes = Uint8List.fromList(bytesList);
+
+      await Globals.storage.temp.write('${track.bvid}/media', bytes);
+
+      return bytes;
+    }
+    
   }
 
   Future<Track> getTrackbyId(String id) async {
@@ -53,14 +61,11 @@ class TrackRepo {
   Future<Uint8List> getCover(Track track) async {
     try {
       final bytes = await Globals.storage.temp.read('${track.bvid}/cover');
-      print('from local');
       return bytes;
     }
     catch (err) {
-      // -网络请求-并且存储本地
       final bytes = await http.readBytes(Uri.parse(track.pictureUrl));
       await Globals.storage.temp.write('${track.bvid}/cover', bytes);
-      print('from web');
       return bytes;
     }
   }

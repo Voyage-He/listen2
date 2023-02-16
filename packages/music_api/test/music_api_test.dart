@@ -54,9 +54,7 @@ void main() {
     test("getAudioStream", () async  {
       var audioUrl = 'https://xy121x205x162x59xy.mcdn.bilivideo.cn:4483/upgcxcode/36/28/577322836/577322836_nb2-1-30280.m4s?e=ig8euxZM2rNcNbdlhoNvNC8BqJIzNbfqXBvEqxTEto8BTrNvN0GvT90W5JZMkX_YN0MvXg8gNEV4NC8xNEV4N03eN0B5tZlqNxTEto8BTrNvNeZVuJ10Kj_g2UB02J0mN0B5tZlqNCNEto8BTrNvNC7MTX502C8f2jmMQJ6mqF2fka1mqx6gqj0eN0B599M=&uipk=5&nbs=1&deadline=1674571312&gen=playurlv2&os=mcdn&oi=1883493844&trid=0000fb51d70242594790910a424322168cfbu&mid=0&platform=pc&upsig=9793dc3b643fad4455aa92cfe8ca1a7e&uparams=e,uipk,nbs,deadline,gen,os,oi,trid,mid,platform&mcdnid=11000334&bvc=vod&nettype=0&orderid=0,3&buvid=Set-Cookie: buvid3=9A5BF3F2-CA0D-7038-CCA1-DAD3175D6E5268780infoc&build=0&agrr=0&bw=40730&logo=A0000400';
       var res = await c.getAudioStream(audioUrl);
-      var s = res.stream;
-      print(res.statusCode);
-      await for (var b in s) {
+      await for (var b in res) {
         print(String.fromCharCodes(b));
       }
     });

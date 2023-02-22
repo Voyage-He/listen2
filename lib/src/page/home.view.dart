@@ -7,6 +7,7 @@ import 'package:listen2/src/repo/track.repo.dart';
 
 import 'search/search.view.dart';
 import 'favorite.view.dart';
+import './player.view.dart';
 
 import '../bloc/player.cubit.dart';
 
@@ -96,9 +97,33 @@ class BottomPlayer extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        
+        Navigator.of(context).push(
+          PageRouteBuilder(
+            pageBuilder:(context, _, __) => const Player(),
+            transitionDuration: const Duration(milliseconds: 200),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 1.0),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
+              );
+            },
+          )
+        );
       },
       child: BlocBuilder<PlayerCubit, PlayerState>(
+        buildWhen: (previous, current) {
+          if (previous.currentTrack == current.currentTrack &&
+              previous.state == current.state 
+          ) {
+            return false;
+          }
+          else {
+          return true;
+          }
+        },
         builder: (context, state) {
           final track = state.currentTrack;
           final isPlaying = state.state == ad.PlayerState.playing;

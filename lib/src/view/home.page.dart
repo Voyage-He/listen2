@@ -5,9 +5,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:audioplayers/audioplayers.dart' as ad;
 import 'package:listen2/src/repo/track.repo.dart';
 
-import 'search/search.view.dart';
-import 'favorite.view.dart';
-import './player.view.dart';
+import 'search.page.dart';
+import 'favorite.page.dart';
+import 'player.page.dart';
 
 import '../bloc/player.cubit.dart';
 

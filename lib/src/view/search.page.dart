@@ -5,7 +5,7 @@ import 'package:listen2/src/widget/input/input.dart';
 
 import 'package:listen2/src/bloc/favorite.cubit.dart';
 import 'package:listen2/src/bloc/player.cubit.dart';
-import 'search.cubit.dart';
+import '../bloc/search.cubit.dart';
 
 import 'package:listen2/src/repo/track.repo.dart';
 

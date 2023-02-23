@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import './src/global/main.dart';
 
-import 'src/page/home.view.dart';
+import 'src/view/home.page.dart';
 
 import 'src/bloc/player.cubit.dart';
 import 'src/bloc/favorite.cubit.dart';

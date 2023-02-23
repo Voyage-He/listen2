@@ -79,15 +79,20 @@ class Player extends StatelessWidget {
           alignment: const Alignment(0, 0.3),
           child: BlocBuilder<PlayerCubit, PlayerState>(
             builder: (context, state) {
+              final nowMin = state.now.inMinutes;
+              final nowSec = state.now.inSeconds - (60 * nowMin);
+              final lengthMin = state.length.inMinutes;
+              final lengthSec = state.length.inSeconds - (60 * lengthMin);
+
               return Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Text(state.now.inSeconds.toString(), style: TextStyle(fontSize: 10),),
+                  Text('${nowMin}:${nowSec}', style: TextStyle(fontSize: 15),),
                   ProgressBar(now: state.now.inSeconds / state.length.inSeconds, onSeek: (seek) async {
                     final position = state.length * seek;
                     await context.read<PlayerCubit>().seek(position);
-                  })
-                  // Text(state.length.inSeconds.toString(), style: TextStyle(fontSize: 10),),
+                  }),
+                  Text('${lengthMin}:${lengthSec}', style: TextStyle(fontSize: 15),),
                 ],
               );
             },

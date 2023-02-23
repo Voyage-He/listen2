@@ -23,7 +23,7 @@ class _ProgressBarState extends State<ProgressBar> {
   Widget build(BuildContext context) {
 
     final bar = Container(
-      width: 340,
+      width: 300,
       height: 5,
       decoration: const BoxDecoration(
         color: Colors.white70,
@@ -39,7 +39,7 @@ class _ProgressBarState extends State<ProgressBar> {
         setState(() {});
       },
       onHorizontalDragUpdate: (details) {
-        final delta = details.delta.dx / 340;
+        final delta = details.delta.dx / 300;
         _seek += delta;
         if (_seek < 0) _seek = 0;
         if (_seek > 1) _seek = 1;
@@ -63,7 +63,7 @@ class _ProgressBarState extends State<ProgressBar> {
     );
 
     return SizedBox(
-      width: 340,
+      width: 300,
       height: 20,
       child: Stack(
         alignment: Alignment.bottomCenter,

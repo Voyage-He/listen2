@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show Colors, Icons;
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:audioplayers/audioplayers.dart' as ad;
+import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:listen2/src/repo/track.repo.dart';
 
 import 'search.page.dart';
@@ -113,30 +113,18 @@ class BottomPlayer extends StatelessWidget {
           )
         );
       },
-      child: BlocBuilder<PlayerCubit, PlayerState>(
-        buildWhen: (previous, current) {
-          if (previous.currentTrack == current.currentTrack &&
-              previous.state == current.state 
-          ) {
-            return false;
-          }
-          else {
-          return true;
-          }
-        },
-        builder: (context, state) {
-          final track = state.currentTrack;
-          final isPlaying = state.state == ad.PlayerState.playing;
-          return Container(
-            padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 20.0),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              boxShadow: [BoxShadow(color: Color.fromARGB(80, 0, 0, 0), offset: Offset(0, 0), blurRadius: 10.0, spreadRadius: 0.0)]
-            ),
-            child: Row(
-              
-              children: [
-                track != null ? FutureBuilder<Uint8List>(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 20.0),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          boxShadow: [BoxShadow(color: Color.fromARGB(80, 0, 0, 0), offset: Offset(0, 0), blurRadius: 10.0, spreadRadius: 0.0)]
+        ),
+        child: Row(
+          children: [
+            BlocSelector<PlayerCubit, PlayerState, Track?>(
+              selector: (state) => state.currentTrack,
+              builder: ((context, track) {
+                return track != null ? FutureBuilder<Uint8List>(
                   future: TrackRepo().getCover(track),
                   builder: ((context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.done) {
@@ -151,22 +139,38 @@ class BottomPlayer extends StatelessWidget {
                       return Container(width: 50, height: 50, color: Colors.grey,);
                     }
                   })
-                ) : Container(width: 50, height: 50, color: Colors.grey,),
-                Expanded(child: Text(track?.title ?? '', style: const TextStyle(fontSize: 20, overflow: TextOverflow.ellipsis))),
-                GestureDetector(
+                ) : Container(width: 50, height: 50, color: Colors.grey,);
+              })
+            ),
+            BlocSelector<PlayerCubit, PlayerState, Track?>(
+              selector: (state) => state.currentTrack,
+              builder: (context, track) {
+                return Expanded(child: 
+                  Text(
+                    track?.title ?? '', 
+                    style: const TextStyle(fontSize: 20, overflow: TextOverflow.ellipsis))
+                );
+              },
+            ),
+            BlocSelector<PlayerCubit, PlayerState, ap.PlayerState>(
+              selector: (state) {
+                return state.state;
+              },
+              builder: (context, state) {
+                final isPlaying = state == ap.PlayerState.playing;
+                return GestureDetector(
                   onTap: () {
                     final player = context.read<PlayerCubit>();
                     if (isPlaying) {player.pause();}
                     else {player.resume();}
                   },
                   child: Icon(isPlaying ? Icons.pause_circle_outline : Icons.play_circle_outline, size: 35,)
-                ),
-                Icon(Icons.list, size: 40,),
-
-              ],
+                );
+              },
             ),
-          );
-        }
+            Icon(Icons.list, size: 40,),
+          ],
+        ),
       ),
     );
   }

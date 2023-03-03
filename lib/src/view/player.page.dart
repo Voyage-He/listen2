@@ -17,11 +17,11 @@ class Player extends StatelessWidget {
     var blurImage = ClipRect(
       child: Stack(
         children: [
-          BlocBuilder<PlayerCubit, PlayerState>(
-            buildWhen: (previous, current) => previous.currentTrack != current.currentTrack,
-            builder: (context, playerState) {
+          BlocSelector<PlayerCubit, PlayerState, Track?>(
+            selector: (state) => state.currentTrack,
+            builder: (context, track) {
               return FutureBuilder(
-                  future: TrackRepo().getCover(playerState.currentTrack!),
+                  future: TrackRepo().getCover(track!),
                   builder: ((context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.done) {
                       return Image.memory(
@@ -53,11 +53,11 @@ class Player extends StatelessWidget {
         blurImage,
         Align(
           alignment: const Alignment(0, -0.5),
-          child: BlocBuilder<PlayerCubit, PlayerState>(
-            buildWhen: (previous, current) => previous.currentTrack != current.currentTrack,
-            builder: (context, playerState) {
+          child: BlocSelector<PlayerCubit, PlayerState, Track?>(
+            selector: (state) => state.currentTrack,
+            builder: (context, track) {
               return FutureBuilder(
-                  future: TrackRepo().getCover(playerState.currentTrack!),
+                  future: TrackRepo().getCover(track!),
                   builder: ((context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.done) {
                       return Image.memory(
@@ -77,19 +77,22 @@ class Player extends StatelessWidget {
         ),
         Align(
           alignment: const Alignment(0, 0.3),
-          child: BlocBuilder<PlayerCubit, PlayerState>(
+          child: BlocSelector<PlayerCubit, PlayerState, List<Duration>>(
+            selector: (state) => [state.now, state.length],
             builder: (context, state) {
-              final nowMin = state.now.inMinutes;
-              final nowSec = state.now.inSeconds - (60 * nowMin);
-              final lengthMin = state.length.inMinutes;
-              final lengthSec = state.length.inSeconds - (60 * lengthMin);
+              final now = state[0];
+              final length = state[1];
+              final nowMin = now.inMinutes;
+              final nowSec = now.inSeconds - (60 * nowMin);
+              final lengthMin = length.inMinutes;
+              final lengthSec = length.inSeconds - (60 * lengthMin);
 
               return Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text('${nowMin}:${nowSec}', style: TextStyle(fontSize: 15),),
-                  ProgressBar(now: state.now.inSeconds / state.length.inSeconds, onSeek: (seek) async {
-                    final position = state.length * seek;
+                  ProgressBar(now: now.inSeconds / length.inSeconds, onSeek: (seek) async {
+                    final position = length * seek;
                     await context.read<PlayerCubit>().seek(position);
                   }),
                   Text('${lengthMin}:${lengthSec}', style: TextStyle(fontSize: 15),),

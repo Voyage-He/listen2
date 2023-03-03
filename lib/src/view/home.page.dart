@@ -100,14 +100,18 @@ class BottomPlayer extends StatelessWidget {
         Navigator.of(context).push(
           PageRouteBuilder(
             pageBuilder:(context, _, __) => const Player(),
-            transitionDuration: const Duration(milliseconds: 200),
+            transitionDuration: const Duration(milliseconds: 100),
+            reverseTransitionDuration: const Duration(milliseconds: 100),
             transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 1.0),
-                  end: Offset.zero,
-                ).animate(animation),
-                child: child,
+              return FadeTransition(
+                opacity: Tween<double>(begin: 0, end: 1).animate(animation),
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.3),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                ),
               );
             },
           )

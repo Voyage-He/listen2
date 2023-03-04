@@ -26,7 +26,7 @@ void main() async {
     title: "this own title",
     color: Colors.white,
     textStyle: const TextStyle(
-      fontSize: 40, 
+      fontSize: 18, 
       color: Colors.black
     ),
     debugShowCheckedModeBanner: false,

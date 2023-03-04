@@ -1,7 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter/material.dart' show Colors;
+import 'package:flutter/material.dart' show Colors, Theme;
 
 import 'package:listen2/src/bloc/player.cubit.dart';
 
@@ -90,12 +90,12 @@ class Player extends StatelessWidget {
               return Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('${nowMin}:${nowSec}', style: TextStyle(fontSize: 15),),
+                  Text('$nowMin:$nowSec', style: Theme.of(context).textTheme.bodyLarge),
                   ProgressBar(now: now.inSeconds / length.inSeconds, onSeek: (seek) async {
                     final position = length * seek;
                     await context.read<PlayerCubit>().seek(position);
                   }),
-                  Text('${lengthMin}:${lengthSec}', style: TextStyle(fontSize: 15),),
+                  Text('$lengthMin:$lengthSec', style: Theme.of(context).textTheme.bodyLarge),
                 ],
               );
             },

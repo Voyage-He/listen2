@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart' show Theme, Colors, Divider, Icons;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../bloc/favorite.cubit.dart';
@@ -41,7 +42,6 @@ class FavoriteTrack extends StatelessWidget {
     return BlocBuilder<TrackCubit, Track?>(
       bloc: TrackCubit(TrackRepo())..getTrackbyId(id), 
       builder: (context, state) {
-        const st = TextStyle(fontSize: 15);
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () {
@@ -51,13 +51,13 @@ class FavoriteTrack extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             child: Row(
               children: [
-                Container(margin: EdgeInsets.symmetric(horizontal: 20), child: Text('${(index + 1).toString()}')),
+                Container(margin: const EdgeInsets.symmetric(horizontal: 20), child: Text((index + 1).toString())),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(state?.title ?? '', style: st,),
-                      Text(state?.singer ?? '', style: st,)
+                      Text(state?.title ?? '', style: Theme.of(context).textTheme.headline6),
+                      Text(state?.singer ?? '', style: Theme.of(context).textTheme.bodyMedium)
                     ],
                   ),
                 ),
@@ -65,7 +65,7 @@ class FavoriteTrack extends StatelessWidget {
                   onTap: () {
                     context.read<FavoriteCubit>().toggle(id);
                   },
-                  child: Icon(Icons.favorite_outlined, color: Colors.redAccent,)
+                  child: const Icon(Icons.favorite_outlined, color: Colors.redAccent,)
                 ),
               ],
             ),

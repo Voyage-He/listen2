@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter/material.dart' show Colors, Icons;
+import 'package:flutter/material.dart' show Colors, Icons, Theme;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:listen2/src/repo/track.repo.dart';
@@ -36,7 +36,7 @@ class Home extends StatelessWidget {
                 },
                 child: Icon(Icons.favorite, color: Colors.redAccent, size: 40,)
               ),
-              Text('收藏', style: TextStyle(fontSize: 18),)
+              Text('收藏', style: Theme.of(context).textTheme.headlineSmall)
             ]),
           ),
           Align(

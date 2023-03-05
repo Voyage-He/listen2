@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show Colors, Icons, Theme;
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -10,6 +9,8 @@ import 'favorite.page.dart';
 import 'player.page.dart';
 
 import '../bloc/player.cubit.dart';
+
+import './track_cover.widget.dart';
 
 class Home extends StatelessWidget {
   const Home({super.key});
@@ -129,24 +130,9 @@ class BottomPlayer extends StatelessWidget {
           children: [
             BlocSelector<PlayerCubit, PlayerState, Track?>(
               selector: (state) => state.currentTrack,
-              builder: ((context, track) {
-                return track != null ? FutureBuilder<Uint8List>(
-                  future: TrackRepo().getCover(track),
-                  builder: ((context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.done) {
-                      return Image.memory(
-                        snapshot.data!,
-                        width: 50,
-                        height: 50,
-                        errorBuilder: (context, _, __) => Container(width: 50, height: 50, color: Colors.grey,),
-                      );
-                    }
-                    else {
-                      return Container(width: 50, height: 50, color: Colors.grey,);
-                    }
-                  })
-                ) : Container(width: 50, height: 50, color: Colors.grey,);
-              })
+              builder: (context, track) {
+                return track != null ? TrackCover(track, width: 50, height: 50,) : Container(width: 50, height: 50, color: Colors.grey,);
+              }
             ),
             BlocSelector<PlayerCubit, PlayerState, Track?>(
               selector: (state) => state.currentTrack,

@@ -7,6 +7,7 @@ import 'package:listen2/src/bloc/player.cubit.dart';
 
 import 'package:listen2/src/repo/track.repo.dart';
 
+import './track_cover.widget.dart';
 import 'package:listen2/src/widget/progress_bar.dart';
 
 class Player extends StatelessWidget {
@@ -19,24 +20,8 @@ class Player extends StatelessWidget {
         children: [
           BlocSelector<PlayerCubit, PlayerState, Track?>(
             selector: (state) => state.currentTrack,
-            builder: (context, track) {
-              return FutureBuilder(
-                  future: TrackRepo().getCover(track!),
-                  builder: ((context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.done) {
-                      return Image.memory(
-                        fit: BoxFit.cover,
-                        height: double.infinity,
-                        snapshot.data!,
-                        errorBuilder: (context, _, __) => Container(width: 50, height: 50, color: Colors.grey,),
-                      );
-                    }
-                    else {
-                      return Container(width: 50, height: 50, color: Colors.grey,);
-                    }
-                  })
-                );
-            },
+            builder: (context, track) => TrackCover(track!, height: double.infinity, fit: BoxFit.cover)
+            ,
           ),
           BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
@@ -56,22 +41,7 @@ class Player extends StatelessWidget {
           child: BlocSelector<PlayerCubit, PlayerState, Track?>(
             selector: (state) => state.currentTrack,
             builder: (context, track) {
-              return FutureBuilder(
-                  future: TrackRepo().getCover(track!),
-                  builder: ((context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.done) {
-                      return Image.memory(
-                        height: 250,
-                        width: 250,
-                        snapshot.data!,
-                        errorBuilder: (context, _, __) => Container(width: 50, height: 50, color: Colors.grey,),
-                      );
-                    }
-                    else {
-                      return Container(width: 50, height: 50, color: Colors.grey,);
-                    }
-                  })
-                );
+              return TrackCover(track!, width: 250, height: 250);
             },
           ),
         ),

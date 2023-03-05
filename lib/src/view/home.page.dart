@@ -26,20 +26,20 @@ class Home extends StatelessWidget {
           ),
           Container(
             width: double.infinity,
-            padding: EdgeInsets.fromLTRB(5, 40 + 10, 5, 50),
+            padding: const EdgeInsets.fromLTRB(5, 40 + 10, 5, 50),
             child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
               GestureDetector(
                 onTap: () {
                   Navigator.of(context).push(
-                    PageRouteBuilder(pageBuilder:(context, _, __) => FavoratePage(),)
+                    PageRouteBuilder(pageBuilder:(context, _, __) => const FavoratePage(),)
                   );
                 },
-                child: Icon(Icons.favorite, color: Colors.redAccent, size: 40,)
+                child: const Icon(Icons.favorite, color: Colors.redAccent, size: 40,)
               ),
               Text('收藏', style: Theme.of(context).textTheme.headlineSmall)
             ]),
           ),
-          Align(
+          const Align(
             alignment: Alignment.bottomCenter,
             child: BottomPlayer(),
           )
@@ -55,7 +55,7 @@ class Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(vertical: 5.0, horizontal: 20.0),
+      padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 20.0),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), offset: Offset(0, 7), blurRadius: 10.0, spreadRadius: -5)]
@@ -72,7 +72,7 @@ class Header extends StatelessWidget {
                   transitionsBuilder: (context, animation, secondaryAnimation, child) {
                     return SlideTransition(
                       position: Tween<Offset>(
-                        begin: Offset(1.0, 0.0),
+                        begin: const Offset(1.0, 0.0),
                         end: Offset.zero,
                       ).animate(animation),
                       child: child,
@@ -174,7 +174,7 @@ class BottomPlayer extends StatelessWidget {
                 );
               },
             ),
-            Icon(Icons.list, size: 40,),
+            const Icon(Icons.list, size: 40,),
           ],
         ),
       ),

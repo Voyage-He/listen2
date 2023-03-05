@@ -95,93 +95,89 @@ class BottomPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocSelector<PlayerCubit, PlayerState, Track?>(
-      selector: (state) => state.currentTrack,
-      builder: (context, track) {
-        return GestureDetector(
-          onTap: () {
-            if (track == null) return;
-            Navigator.of(context).push(
-              PageRouteBuilder(
-                pageBuilder:(context, _, __) => const Player(),
-                transitionDuration: const Duration(milliseconds: 100),
-                reverseTransitionDuration: const Duration(milliseconds: 100),
-                transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                  return FadeTransition(
-                    opacity: Tween<double>(begin: 0, end: 1).animate(animation),
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.3),
-                        end: Offset.zero,
-                      ).animate(animation),
-                      child: child,
-                    ),
-                  );
-                },
-              )
-            );
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 20.0),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              boxShadow: [BoxShadow(color: Color.fromARGB(80, 0, 0, 0), offset: Offset(0, 0), blurRadius: 10.0, spreadRadius: 0.0)]
-            ),
-            child: Row(
-              children: [
-                BlocSelector<PlayerCubit, PlayerState, Track?>(
-                  selector: (state) => state.currentTrack,
-                  builder: ((context, track) {
-                    return track != null ? FutureBuilder<Uint8List>(
-                      future: TrackRepo().getCover(track),
-                      builder: ((context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.done) {
-                          return Image.memory(
-                            snapshot.data!,
-                            width: 50,
-                            height: 50,
-                            errorBuilder: (context, _, __) => Container(width: 50, height: 50, color: Colors.grey,),
-                          );
-                        }
-                        else {
-                          return Container(width: 50, height: 50, color: Colors.grey,);
-                        }
-                      })
-                    ) : Container(width: 50, height: 50, color: Colors.grey,);
-                  })
+    return GestureDetector(
+      onTap: () {
+        final track = context.read<PlayerCubit>().state.currentTrack;
+        if (track == null) return;
+        Navigator.of(context).push(
+          PageRouteBuilder(
+            pageBuilder:(context, _, __) => const Player(),
+            transitionDuration: const Duration(milliseconds: 100),
+            reverseTransitionDuration: const Duration(milliseconds: 100),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(
+                opacity: Tween<double>(begin: 0, end: 1).animate(animation),
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.3),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
                 ),
-                BlocSelector<PlayerCubit, PlayerState, Track?>(
-                  selector: (state) => state.currentTrack,
-                  builder: (context, track) {
-                    return Expanded(child: 
-                      Text(
-                        track?.title ?? '', 
-                        style: const TextStyle(fontSize: 20, overflow: TextOverflow.ellipsis))
-                    );
-                  },
-                ),
-                BlocSelector<PlayerCubit, PlayerState, ap.PlayerState>(
-                  selector: (state) {
-                    return state.state;
-                  },
-                  builder: (context, state) {
-                    final isPlaying = state == ap.PlayerState.playing;
-                    return GestureDetector(
-                      onTap: () {
-                        final player = context.read<PlayerCubit>();
-                        if (isPlaying) {player.pause();}
-                        else {player.resume();}
-                      },
-                      child: Icon(isPlaying ? Icons.pause_circle_outline : Icons.play_circle_outline, size: 35,)
-                    );
-                  },
-                ),
-                Icon(Icons.list, size: 40,),
-              ],
-            ),
-          ),
+              );
+            },
+          )
         );
       },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 20.0),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          boxShadow: [BoxShadow(color: Color.fromARGB(80, 0, 0, 0), offset: Offset(0, 0), blurRadius: 10.0, spreadRadius: 0.0)]
+        ),
+        child: Row(
+          children: [
+            BlocSelector<PlayerCubit, PlayerState, Track?>(
+              selector: (state) => state.currentTrack,
+              builder: ((context, track) {
+                return track != null ? FutureBuilder<Uint8List>(
+                  future: TrackRepo().getCover(track),
+                  builder: ((context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.done) {
+                      return Image.memory(
+                        snapshot.data!,
+                        width: 50,
+                        height: 50,
+                        errorBuilder: (context, _, __) => Container(width: 50, height: 50, color: Colors.grey,),
+                      );
+                    }
+                    else {
+                      return Container(width: 50, height: 50, color: Colors.grey,);
+                    }
+                  })
+                ) : Container(width: 50, height: 50, color: Colors.grey,);
+              })
+            ),
+            BlocSelector<PlayerCubit, PlayerState, Track?>(
+              selector: (state) => state.currentTrack,
+              builder: (context, track) {
+                return Expanded(child: 
+                  Text(
+                    track?.title ?? '', 
+                    style: const TextStyle(fontSize: 20, overflow: TextOverflow.ellipsis))
+                );
+              },
+            ),
+            BlocSelector<PlayerCubit, PlayerState, ap.PlayerState>(
+              selector: (state) {
+                return state.state;
+              },
+              builder: (context, state) {
+                final isPlaying = state == ap.PlayerState.playing;
+                return GestureDetector(
+                  onTap: () {
+                    final player = context.read<PlayerCubit>();
+                    if (isPlaying) {player.pause();}
+                    else {player.resume();}
+                  },
+                  child: Icon(isPlaying ? Icons.pause_circle_outline : Icons.play_circle_outline, size: 35,)
+                );
+              },
+            ),
+            Icon(Icons.list, size: 40,),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -129,12 +129,7 @@ class BottomPlayer extends StatelessWidget {
   }
 
   Widget _cover() {
-    return BlocSelector<PlayerCubit, PlayerState, Track?>(
-      selector: (state) => state.currentTrack,
-      builder: (context, track) {
-        return track != null ? TrackCover(track, width: 50, height: 50,) : Container(width: 50, height: 50, color: Colors.grey,);
-      }
-    );
+    return const CurrentTrackCover(width: 50, height: 50);
   }
 
   Widget _title() {

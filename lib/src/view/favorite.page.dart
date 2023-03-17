@@ -12,7 +12,7 @@ class FavoratePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 收藏bvid（甚至track完整信息）的本地存储，以及收藏页面列表展示
-    return BlocBuilder<FavoriteCubit, List<String>>(
+    return BlocBuilder<FavoriteCubit, List<Track>>(
       builder: (context, state) {
         return Container(
             color: Colors.white,
@@ -28,10 +28,9 @@ class FavoratePage extends StatelessWidget {
     );
   }
 
-  Widget _favoriteItem(int index, String id) {
-    return BlocBuilder<TrackCubit, Track?>(
-      bloc: TrackCubit(TrackRepo())..getTrackbyId(id), 
-      builder: (context, track) {
+  Widget _favoriteItem(int index, Track track) {
+    return Builder(
+      builder: (context) {
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () {
@@ -41,11 +40,11 @@ class FavoratePage extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             child: Row(
               children: [
-                Container(margin: const EdgeInsets.symmetric(horizontal: 20), child: Text((index + 1).toString())),
+                Container(margin: const EdgeInsets.symmetric(horizontal: 10), child: Text((index + 1).toString())),
                 Expanded(
                   child: _trackInfo(context, track),
                 ),
-                _dislikeButton(context, id),
+                _dislikeButton(context, track.bvid),
               ],
             ),
           ),

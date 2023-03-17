@@ -34,14 +34,14 @@ class Search extends StatelessWidget {
   Widget _searchResult() {
     return BlocBuilder<SearchCubit, List<Track>>(
       builder: (context, tracks) {
-        return BlocBuilder<FavoriteCubit, List<String>>(
+        return BlocBuilder<FavoriteCubit, List<Track>>(
           builder: (context, favorites) {
             return ListView.separated(
               separatorBuilder: (context, index) => const Divider(height: 0),
               itemCount: tracks.length,
               itemBuilder:(context, i) {
                 final track = tracks[i];
-                return _searchItem(context, track, favorites.contains(track.bvid));
+                return _searchItem(context, track, favorites.contains(track));
               });
           },
         );

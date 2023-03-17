@@ -1,22 +1,31 @@
-import 'package:listen2/src/repo/favorite.repo.dart';
 import 'package:bloc/bloc.dart';
 
-import '../repo/track.repo.dart';
+import 'package:listen2/src/repo/track.repo.dart';
+import 'package:listen2/src/repo/favorite.repo.dart';
 
-class FavoriteCubit extends Cubit<List<String>> {
+class FavoriteCubit extends Cubit<List<Track>> {
   FavoriteRepo favoriteRepo = FavoriteRepo();
-  List<String> _favorites = [];
+  List<String> _ids = [];
+  List<Track> _favorites = [];
 
   FavoriteCubit() : super([]);
 
   Future getTracks() async {
-    _favorites = await favoriteRepo.getAll();
+    List<Future<Track>> futures = [];
+
+    _ids = await favoriteRepo.getAll();
+    for (final id in _ids) {
+      futures.add(TrackRepo().getTrackbyId(id));
+    }
+
+    _favorites = await Future.wait(futures);
+    
     emit(_favorites);
   }
 
   Future toggle(String id) async {
     print('toggle favo');
-    if (_favorites.contains(id)) {
+    if (_ids.contains(id)) {
       if (await favoriteRepo.delete(id)) {
         getTracks();
         // Or delete id in _favorites
@@ -31,18 +40,5 @@ class FavoriteCubit extends Cubit<List<String>> {
     }
     
     await Future.delayed(Duration.zero);
-  }
-}
-
-class TrackCubit extends Cubit<Track?> {
-  TrackRepo trackRepo;
-
-  TrackCubit(this.trackRepo) : super(null);
-
-  void getTrackbyId(String id) async {
-
-    var track = await trackRepo.getTrackbyId(id);
-
-    emit(track);
   }
 }

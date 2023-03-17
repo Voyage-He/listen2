@@ -12,6 +12,12 @@ class Track {
   //  TODO platform
 
   Track(this.bvid, this.title, this.singer, this.pictureUrl);
+
+  @override
+  bool operator ==(other) {
+    if (identical(this, other)) return true;
+    return other is Track && bvid == other.bvid;
+  }
 }
 
 class TrackRepo {

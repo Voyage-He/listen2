@@ -22,7 +22,24 @@ class _ProgressBarState extends State<ProgressBar> {
   @override
   Widget build(BuildContext context) {
 
-    final bar = Container(
+    return SizedBox(
+      width: 300,
+      height: 20,
+      child: Stack(
+        alignment: Alignment.bottomCenter,
+        children: [
+          Align(child: _bar()),
+          Align(
+            alignment: Alignment(2 * (_seeking ? _seek : widget.now) - 1, 0),
+            child: _indicator(),
+          )
+        ],
+      )
+    );
+  }
+
+  Widget _bar() {
+    return Container(
       width: 300,
       height: 5,
       decoration: const BoxDecoration(
@@ -30,8 +47,10 @@ class _ProgressBarState extends State<ProgressBar> {
         borderRadius: BorderRadius.all(Radius.circular(10))
       ),
     );
+  }
 
-    final indicator = GestureDetector(
+  Widget _indicator() {
+    return GestureDetector(
       onHorizontalDragStart: (details) {
         print(details);
         _seek = widget.now;
@@ -60,24 +79,6 @@ class _ProgressBarState extends State<ProgressBar> {
           shape: BoxShape.circle,
         ),
       ),
-    );
-
-    return SizedBox(
-      width: 300,
-      height: 20,
-      child: Stack(
-        alignment: Alignment.bottomCenter,
-        children: [
-          Align(
-            child: bar,
-          ),
-          Align(
-            alignment: Alignment(2 * (_seeking ? _seek : widget.now) - 1, 0),
-            child: indicator,
-          )
-          
-        ],
-      )
     );
   }
 }

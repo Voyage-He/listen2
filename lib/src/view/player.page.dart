@@ -15,26 +15,14 @@ class Player extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    var blurImage = ClipRect(
-      child: ImageFiltered(
-        imageFilter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-        child: BlocSelector<PlayerCubit, PlayerState, Track?>(
-          selector: (state) => state.currentTrack,
-          builder: (context, track) => TrackCover(track!, height: double.infinity, fit: BoxFit.cover)
-        ),
-      ),
-    );
-    
     return Stack(
       children: [
-        blurImage,
+        _blurImage(),
         Align(
           alignment: const Alignment(0, -0.5),
           child: BlocSelector<PlayerCubit, PlayerState, Track?>(
             selector: (state) => state.currentTrack,
-            builder: (context, track) {
-              return TrackCover(track!, width: 250, height: 250);
-            },
+            builder: (context, track) => track != null ? TrackCover(track, width: 250, height: 250) : Container(width: 50, height: 50, color: Colors.grey,),
           ),
         ),
         Align(
@@ -66,4 +54,17 @@ class Player extends StatelessWidget {
       ],
     );
   }
+
+  Widget _blurImage() {
+    return ClipRect(
+      child: ImageFiltered(
+        imageFilter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+        child: BlocSelector<PlayerCubit, PlayerState, Track?>(
+          selector: (state) => state.currentTrack,
+          builder: (context, track) => TrackCover(track!, height: double.infinity, fit: BoxFit.cover)
+        ),
+      ),
+    );
+  }
+
 }

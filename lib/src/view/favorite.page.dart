@@ -20,32 +20,22 @@ class FavoratePage extends StatelessWidget {
               separatorBuilder: (context, index) => const Divider(color: Colors.black,),
               itemCount: state.length,
               itemBuilder: (context, index) {
-                return FavoriteTrack(index, state[index]);
+                return _favoriteItem(index, state[index]);
               }
             )
           );
       }
     );
   }
-}
 
-class FavoriteTrack extends StatelessWidget {
-  final int index;
-  final String id;
-
-  const FavoriteTrack(this.index, this.id,{
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _favoriteItem(int index, String id) {
     return BlocBuilder<TrackCubit, Track?>(
       bloc: TrackCubit(TrackRepo())..getTrackbyId(id), 
-      builder: (context, state) {
+      builder: (context, track) {
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () {
-            if (state != null) context.read<PlayerCubit>().playTrack(state);
+            if (track != null) context.read<PlayerCubit>().playTrack(track);
           },
           child: Padding(
             padding: const EdgeInsets.all(10),
@@ -53,25 +43,32 @@ class FavoriteTrack extends StatelessWidget {
               children: [
                 Container(margin: const EdgeInsets.symmetric(horizontal: 20), child: Text((index + 1).toString())),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(state?.title ?? '', style: Theme.of(context).textTheme.headline6),
-                      Text(state?.singer ?? '', style: Theme.of(context).textTheme.bodyMedium)
-                    ],
-                  ),
+                  child: _trackInfo(context, track),
                 ),
-                GestureDetector(
-                  onTap: () {
-                    context.read<FavoriteCubit>().toggle(id);
-                  },
-                  child: const Icon(Icons.favorite_outlined, color: Colors.redAccent,)
-                ),
+                _dislikeButton(context, id),
               ],
             ),
           ),
         );
     });
-    
+  }
+
+  Widget _trackInfo(BuildContext context, Track? track) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(track?.title ?? '', style: Theme.of(context).textTheme.headline6),
+        Text(track?.singer ?? '', style: Theme.of(context).textTheme.bodyMedium)
+      ],
+    );
+  }
+
+  Widget _dislikeButton(BuildContext context, String id) {
+    return GestureDetector(
+      onTap: () {
+        context.read<FavoriteCubit>().toggle(id);
+      },
+      child: const Icon(Icons.favorite_outlined, color: Colors.redAccent)
+    );
   }
 }

@@ -23,52 +23,36 @@ class Search extends StatelessWidget {
             children: [
               const Header(),
               Expanded(
-                child: BlocBuilder<SearchCubit, List<Track>>(
-                  builder: (context, tracks) {
-                    return BlocBuilder<FavoriteCubit, List<String>>(
-                      builder: (context, favorites) {
-                        return ListView.separated(
-                          separatorBuilder: (context, index) => const Divider(height: 0),
-                          itemCount: tracks.length,
-                          itemBuilder:(context, i) {
-                            final track = tracks[i];
-                            return BlocBuilder<PlayerCubit, PlayerState>(
-                              builder: (context, _) {
-                                return SearchItem(track: track, isFavorite: favorites.contains(track.bvid));
-                              }
-                            );
-                          });
-                      },
-                    );
-                  },
-                )
+                child: _searchResult()
               )
             ]
           ),
         ),
     );
   }
-}
 
-class SearchItem extends StatelessWidget {
-  final Track track;
-  final bool isFavorite;
-
-  const SearchItem({
-    Key? key,
-    required this.track,
-    required this.isFavorite
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        print('=======');
-        // ref.read(playerStateProvider.notifier).playTrack(track);
-        context.read<PlayerCubit>().playTrack(track);
+  Widget _searchResult() {
+    return BlocBuilder<SearchCubit, List<Track>>(
+      builder: (context, tracks) {
+        return BlocBuilder<FavoriteCubit, List<String>>(
+          builder: (context, favorites) {
+            return ListView.separated(
+              separatorBuilder: (context, index) => const Divider(height: 0),
+              itemCount: tracks.length,
+              itemBuilder:(context, i) {
+                final track = tracks[i];
+                return _searchItem(context, track, favorites.contains(track.bvid));
+              });
+          },
+        );
       },
-      child:Container(
+    );
+  }
+
+  Widget _searchItem(BuildContext context, Track track, bool isFavorite) {
+    return GestureDetector(
+      onTap: () => context.read<PlayerCubit>().playTrack(track),
+      child: Container(
         padding: const EdgeInsets.symmetric(),
         child: Row(
           children: [
@@ -103,6 +87,8 @@ class SearchItem extends StatelessWidget {
       )
     );
   }
+
+  
 }
 
 class Header extends StatelessWidget {
@@ -119,18 +105,7 @@ class Header extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 20),
-              decoration: const BoxDecoration(
-                color: Colors.black12,
-                borderRadius: BorderRadius.all(Radius.circular(10))
-              ),
-              child: Input(
-                onChange: (text) => context.read<SearchCubit>().onKeywordChange(text),
-                onDone: () => context.read<SearchCubit>().search(),
-              ),
-            )
+            child: _input(context)
           ),
           GestureDetector(
             onTap: () => context.read<SearchCubit>().search(),
@@ -138,6 +113,21 @@ class Header extends StatelessWidget {
           ),
         ]
       )
+    );
+  }
+
+  Widget _input(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 20),
+      decoration: const BoxDecoration(
+        color: Colors.black12,
+        borderRadius: BorderRadius.all(Radius.circular(10))
+      ),
+      child: Input(
+        onChange: (text) => context.read<SearchCubit>().onKeywordChange(text),
+        onDone: () => context.read<SearchCubit>().search(),
+      ),
     );
   }
 }

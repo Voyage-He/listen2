@@ -28,17 +28,7 @@ class Home extends StatelessWidget {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(5, 40 + 10, 5, 50),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-              GestureDetector(
-                onTap: () {
-                  Navigator.of(context).push(
-                    PageRouteBuilder(pageBuilder:(context, _, __) => const FavoratePage(),)
-                  );
-                },
-                child: const Icon(Icons.favorite, color: Colors.redAccent, size: 40,)
-              ),
-              Text('收藏', style: Theme.of(context).textTheme.headlineSmall)
-            ]),
+            child: _FavoriteButton(context)
           ),
           const Align(
             alignment: Alignment.bottomCenter,
@@ -46,6 +36,22 @@ class Home extends StatelessWidget {
           )
         ],
       )
+    );
+  }
+
+  Widget _FavoriteButton(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+      GestureDetector(
+        onTap: () => _navigate2FavoritePage(context),
+        child: const Icon(Icons.favorite, color: Colors.redAccent, size: 40,)
+      ),
+      Text('收藏', style: Theme.of(context).textTheme.headlineSmall)
+    ]);
+  }
+
+  void _navigate2FavoritePage(BuildContext context) {
+    Navigator.of(context).push(
+      PageRouteBuilder(pageBuilder:(context, _, __) => const FavoratePage(),)
     );
   }
 }
@@ -64,27 +70,33 @@ class Header extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          GestureDetector(
-            onTap: () {
-              Navigator.of(context).push(
-                PageRouteBuilder(
-                  pageBuilder:(context, _, __) => const Search(),
-                  // transitionDuration: const Duration(milliseconds: 2000),
-                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                    return SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(1.0, 0.0),
-                        end: Offset.zero,
-                      ).animate(animation),
-                      child: child,
-                    );
-                  },
-                )
-              );
-            },
-            child: Icon(Icons.search, size: 30)
-          ),
+          _SearchButton(context)
         ]
+      )
+    );
+  }
+
+  Widget _SearchButton(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _navigate2SearchPage(context),
+      child: Icon(Icons.search, size: 30)
+    );
+  }
+
+  void _navigate2SearchPage(BuildContext context) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder:(context, _, __) => const Search(),
+        // transitionDuration: const Duration(milliseconds: 2000),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(1.0, 0.0),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          );
+        },
       )
     );
   }
@@ -97,29 +109,7 @@ class BottomPlayer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        final track = context.read<PlayerCubit>().state.currentTrack;
-        if (track == null) return;
-        Navigator.of(context).push(
-          PageRouteBuilder(
-            pageBuilder:(context, _, __) => const Player(),
-            transitionDuration: const Duration(milliseconds: 100),
-            reverseTransitionDuration: const Duration(milliseconds: 100),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(
-                opacity: Tween<double>(begin: 0, end: 1).animate(animation),
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0, 0.3),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
-                ),
-              );
-            },
-          )
-        );
-      },
+      onTap: () => _navigate2PlayerPage(context),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 20.0),
         decoration: const BoxDecoration(
@@ -128,42 +118,78 @@ class BottomPlayer extends StatelessWidget {
         ),
         child: Row(
           children: [
-            BlocSelector<PlayerCubit, PlayerState, Track?>(
-              selector: (state) => state.currentTrack,
-              builder: (context, track) {
-                return track != null ? TrackCover(track, width: 50, height: 50,) : Container(width: 50, height: 50, color: Colors.grey,);
-              }
-            ),
-            BlocSelector<PlayerCubit, PlayerState, Track?>(
-              selector: (state) => state.currentTrack,
-              builder: (context, track) {
-                return Expanded(child: 
-                  Text(
-                    track?.title ?? '', 
-                    style: const TextStyle(fontSize: 20, overflow: TextOverflow.ellipsis))
-                );
-              },
-            ),
-            BlocSelector<PlayerCubit, PlayerState, ap.PlayerState>(
-              selector: (state) {
-                return state.state;
-              },
-              builder: (context, state) {
-                final isPlaying = state == ap.PlayerState.playing;
-                return GestureDetector(
-                  onTap: () {
-                    final player = context.read<PlayerCubit>();
-                    if (isPlaying) {player.pause();}
-                    else {player.resume();}
-                  },
-                  child: Icon(isPlaying ? Icons.pause_circle_outline : Icons.play_circle_outline, size: 35,)
-                );
-              },
-            ),
+            _cover(),
+            _title(),
+            _controlButton(),
             const Icon(Icons.list, size: 40,),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _cover() {
+    return BlocSelector<PlayerCubit, PlayerState, Track?>(
+      selector: (state) => state.currentTrack,
+      builder: (context, track) {
+        return track != null ? TrackCover(track, width: 50, height: 50,) : Container(width: 50, height: 50, color: Colors.grey,);
+      }
+    );
+  }
+
+  Widget _title() {
+    return BlocSelector<PlayerCubit, PlayerState, Track?>(
+      selector: (state) => state.currentTrack,
+      builder: (context, track) {
+        return Expanded(child: 
+          Text(
+            track?.title ?? '', 
+            style: const TextStyle(fontSize: 20, overflow: TextOverflow.ellipsis))
+        );
+      },
+    );
+  }
+
+  Widget _controlButton() {
+    return BlocSelector<PlayerCubit, PlayerState, ap.PlayerState>(
+      selector: (state) {
+        return state.state;
+      },
+      builder: (context, state) {
+        final isPlaying = state == ap.PlayerState.playing;
+        return GestureDetector(
+          onTap: () {
+            final player = context.read<PlayerCubit>();
+            if (isPlaying) {player.pause();}
+            else {player.resume();}
+          },
+          child: Icon(isPlaying ? Icons.pause_circle_outline : Icons.play_circle_outline, size: 35,)
+        );
+      },
+    );
+  }
+
+  void _navigate2PlayerPage(BuildContext context) {
+    final track = context.read<PlayerCubit>().state.currentTrack;
+    if (track == null) return;
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder:(context, _, __) => const Player(),
+        transitionDuration: const Duration(milliseconds: 100),
+        reverseTransitionDuration: const Duration(milliseconds: 100),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: Tween<double>(begin: 0, end: 1).animate(animation),
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.3),
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            ),
+          );
+        },
+      )
     );
   }
 }

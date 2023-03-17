@@ -17,7 +17,7 @@ class FavoratePage extends StatelessWidget {
         return Container(
             color: Colors.white,
             child: ListView.separated(
-              separatorBuilder: (context, index) => const Divider(color: Colors.black,),
+              separatorBuilder: (context, index) => const Divider(color: Colors.black26, height: 1,),
               itemCount: state.length,
               itemBuilder: (context, index) {
                 return _favoriteItem(index, state[index]);
@@ -57,7 +57,7 @@ class FavoratePage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(track?.title ?? '', style: Theme.of(context).textTheme.headline6),
+        Text(track?.title ?? '', style: Theme.of(context).textTheme.bodyLarge),
         Text(track?.singer ?? '', style: Theme.of(context).textTheme.bodyMedium)
       ],
     );

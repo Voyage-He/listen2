@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audioplayers/audioplayers.dart' as ad;
 import 'package:bloc/bloc.dart';
 
@@ -5,18 +7,21 @@ import '../repo/track.repo.dart';
 
 class PlayerCubit extends Cubit<PlayerState> {
   final _player = ad.AudioPlayer();
+  late StreamSubscription _playerStateChangeSubscription;
+  late StreamSubscription _durationChangeSubscription;
+  late StreamSubscription _positionChangeSubscription;
 
   PlayerCubit() : super(PlayerState(state: ad.PlayerState.stopped)) {
-    _player.onPlayerStateChanged.listen((e) {
+    _playerStateChangeSubscription = _player.onPlayerStateChanged.listen((e) {
       print('listened_state$e');
       emit(state.copyWith(state: e));
     });
 
-    _player.onDurationChanged.listen((e) async {
+    _durationChangeSubscription = _player.onDurationChanged.listen((e) async {
       emit(state.copyWith(length: e));
     });
 
-    _player.onPositionChanged.listen((e) {
+    _positionChangeSubscription = _player.onPositionChanged.listen((e) {
       emit(state.copyWith(now: e));
     });
   }
@@ -44,6 +49,15 @@ class PlayerCubit extends Cubit<PlayerState> {
   seek(Duration position) async {
     print(position);
     await _player.seek(position);
+  }
+
+  @override
+  Future close() async {
+    _positionChangeSubscription.cancel();
+    _durationChangeSubscription.cancel();
+    _playerStateChangeSubscription.cancel();
+    _player.dispose();
+    super.close();
   }
 }
 

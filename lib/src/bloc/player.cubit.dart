@@ -43,6 +43,7 @@ class PlayerCubit extends Cubit<PlayerState> {
   }
 
   resume() async {
+    if (_player.state == ad.PlayerState.completed) return;
     _player.resume();
   }
 

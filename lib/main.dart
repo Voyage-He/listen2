@@ -1,79 +1,72 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show Colors;
 import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import './src/global/main.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:listen2/src/provider/global/storage.dart';
+import 'package:listen2/src/provider/repo/bilibili.dart';
 
 import 'src/view/home.page.dart';
 
-import 'src/bloc/player.cubit.dart';
-import 'src/bloc/favorite.cubit.dart';
-
-import 'src/repo/track.repo.dart';
-
-Future globalInit() async {
-  Future.wait([
-    Globals.init(),
-    TrackRepo().init()
-  ]);
-}
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await globalInit();
-  
-  runApp(WidgetsApp(
-    title: "this own title",
-    color: Colors.white,
-    textStyle: const TextStyle(
-      fontSize: 18, 
-      color: Colors.black
+
+  runApp(ProviderScope(
+    child: WidgetsApp(
+      title: "listen2 music player",
+      color: Colors.white,
+      textStyle: const TextStyle(fontSize: 18, color: Colors.black),
+      debugShowCheckedModeBanner: false,
+      // home: const Home(),
+      initialRoute: '/',
+      onGenerateRoute: (RouteSettings settings) {
+        WidgetBuilder builder;
+        switch (settings.name) {
+          case '/':
+            builder = (context) => const Home();
+            break;
+          default:
+            throw Exception('Invalid route: ${settings.name}');
+        }
+        return PageRouteBuilder(
+            pageBuilder: (context, _, __) => builder(context));
+      },
+      builder: (context, child) => App(child: child!),
     ),
-    debugShowCheckedModeBanner: false,
-    // home: const Home(),
-    initialRoute: '/',
-    onGenerateRoute: (RouteSettings settings) {
-      WidgetBuilder builder;
-      switch (settings.name) {
-        case '/':
-          builder = (context) => const Home();
-          break;
-        default: 
-          throw Exception('Invalid route: ${settings.name}');
-      }
-      return PageRouteBuilder(pageBuilder: (context, _, __) => builder(context));
-    },
-    builder: (context, child) => App(child: child!),
   ));
 }
 
-class App extends StatelessWidget {
+class App extends ConsumerWidget {
   const App({super.key, required this.child});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(statusBarColor: Colors.transparent, statusBarIconBrightness: Brightness.dark));
+  Widget build(BuildContext context, WidgetRef ref) {
+    // global initialize and config settings
+    var storage = ref.watch(hiveStorageProvider);
+    ref.watch(bilibiliClientNotifierProvider);
+
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark));
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown, 
+      DeviceOrientation.portraitDown,
     ]);
 
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(create: (context) => FavoriteCubit()..getTracks()),
-        BlocProvider(create: (context) => PlayerCubit()),
-      ],
-      child: GestureDetector(
+    var w = storage.when(
+      data: (data) => child,
+      loading: () => const Text('loading'),
+      error: (o, t) {
+        debugPrint(o.toString());
+        debugPrint(t.toString());
+        return const Text('Error');
+      },
+    );
+
+    return GestureDetector(
         onTap: () => Focus.of(context).requestFocus(FocusNode()),
         onVerticalDragStart: (_) => Focus.of(context).requestFocus(FocusNode()),
-        // onDrag 
-        child: Container(
-          color: Colors.white,
-          child: SafeArea(child: child)
-        )
-      ),
-    );
+        child: Container(color: Colors.white, child: SafeArea(child: w)));
   }
 }

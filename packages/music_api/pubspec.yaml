@@ -1,23 +1,24 @@
 name: music_api
-description: A new Flutter package project.
+description: "A new Flutter package project."
 version: 0.0.1
 homepage:
 
 environment:
-  sdk: '>=2.18.4 <3.0.0'
+  sdk: '>=3.4.4 <4.0.0'
   flutter: ">=1.17.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  http: ^0.13.5
+  hive: ^2.2.3
+  http: ^0.13.6
   requests: ^4.7.0
-  shared_preferences: ^2.0.15
+  shared_preferences: ^2.3.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^2.0.0
+  flutter_lints: ^3.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

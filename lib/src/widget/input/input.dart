@@ -2,11 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class Input extends StatefulWidget {
-  Input({
-    super.key,
-    this.onChange,
-    this.onDone
-  });
+  Input({super.key, this.onChange, this.onDone});
 
   void Function(String)? onChange;
   void Function()? onDone;
@@ -30,7 +26,7 @@ class _InputState extends State<Input> {
     //   // print('object')
     //   if (widget.onChange != null) {
     //     widget.onChange!(text);
-        
+
     //   }
     // });
   }
@@ -44,22 +40,21 @@ class _InputState extends State<Input> {
   @override
   Widget build(BuildContext context) {
     final n = FocusNode();
-    return Listener(onPointerDown: (_){},
-      child: EditableText(
-        controller: _controller,
-        focusNode: n,
-        style: const TextStyle(color: Colors.black, fontSize: 20),
-        cursorColor: Colors.blue.shade700,
-        backgroundCursorColor: Colors.white10,
-        textInputAction: TextInputAction.search,
-        onEditingComplete: (() {
-          n.unfocus();
-          if (widget.onDone !=null) {widget.onDone!();}
-        }),
-        onChanged: widget.onChange
-        
-      )
-    );
-    
+    return Listener(
+        onPointerDown: (_) {},
+        child: EditableText(
+            controller: _controller,
+            focusNode: n,
+            style: const TextStyle(color: Colors.black, fontSize: 20),
+            cursorColor: Colors.blue.shade700,
+            backgroundCursorColor: Colors.white10,
+            textInputAction: TextInputAction.search,
+            onEditingComplete: (() {
+              n.unfocus();
+              if (widget.onDone != null) {
+                widget.onDone!();
+              }
+            }),
+            onChanged: widget.onChange));
   }
 }

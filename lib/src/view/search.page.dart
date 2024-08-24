@@ -18,6 +18,7 @@ class KeywordNotifier extends _$KeywordNotifier {
   }
 
   update(String value) {
+    print('update:$value');
     state = value;
   }
 }
@@ -63,6 +64,7 @@ class Search extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(keywordNotifierProvider);
     return Container(
       decoration: const BoxDecoration(color: Colors.white),
       child: Column(
@@ -139,7 +141,7 @@ class Header extends ConsumerWidget {
     return Container(
         padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 20.0),
         decoration: BoxDecoration(
-            color: const Color.fromARGB(255, 48, 38, 38),
+            color: Color.fromARGB(255, 228, 228, 228),
             boxShadow: [
               BoxShadow(
                   color: Colors.black.withOpacity(0.2),
@@ -159,7 +161,7 @@ class Header extends ConsumerWidget {
   }
 
   Widget _input(WidgetRef ref) {
-    ref.watch(keywordNotifierProvider);
+    // ref.watch(keywordNotifierProvider);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 20),
@@ -168,9 +170,10 @@ class Header extends ConsumerWidget {
           borderRadius: BorderRadius.all(Radius.circular(10))),
       child: Input(
         onChange: (text) {
+          print('change:' + text);
           ref.read(keywordNotifierProvider.notifier).update(text);
         },
-        onDone: () => 1,
+        onDone: () => {ref.read(searchResultProvider.notifier).search()},
       ),
     );
   }

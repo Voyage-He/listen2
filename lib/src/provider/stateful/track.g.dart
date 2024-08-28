@@ -456,20 +456,5 @@ class _TrackCoverProviderElement
   @override
   Track get track => (origin as TrackCoverProvider).track;
 }
-
-String _$currentTrackHash() => r'462c234284cab31c4e57424550431abc8d8742c3';
-
-/// See also [CurrentTrack].
-@ProviderFor(CurrentTrack)
-final currentTrackProvider = NotifierProvider<CurrentTrack, Track?>.internal(
-  CurrentTrack.new,
-  name: r'currentTrackProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$currentTrackHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$CurrentTrack = Notifier<Track?>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

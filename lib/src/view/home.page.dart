@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show Colors, Icons, Theme;
 import 'package:audioplayers/audioplayers.dart' as ap;
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/stateful/player.dart';
 import 'package:listen2/src/provider/stateful/track.dart';
@@ -100,7 +101,7 @@ class BottomPlayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    var track = ref.watch(currentTrackProvider);
+    var track = ref.watch(playerStateNotifierProvider.select((it) => it.track));
     return GestureDetector(
       onTap: () => _navigate2PlayerPage(context, track),
       child: Container(
@@ -141,6 +142,7 @@ class BottomPlayer extends ConsumerWidget {
   Widget _controlButton(WidgetRef ref) {
     var playerState = ref.watch(playerStateNotifierProvider);
     final isPlaying = playerState.state == ap.PlayerState.playing;
+    // print('controlbutton$isPlaying');
     return GestureDetector(
         onTap: () {
           final player = ref.read(playerStateNotifierProvider.notifier);

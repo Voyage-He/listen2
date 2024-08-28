@@ -32,6 +32,7 @@ class Track {
 Future<Track> track(TrackRef ref, String id) async {
   // TODO Move cache logic to repository
   var tracksBox = await Hive.openBox<Track>('tracks');
+  // tracksBox.clear();
   var track = tracksBox.get(id);
 
   if (track != null) return track;
@@ -48,17 +49,17 @@ Future<Track> track(TrackRef ref, String id) async {
   return Track(res[0], res[1], res[2], res[3]);
 }
 
-@Riverpod(keepAlive: true)
-class CurrentTrack extends _$CurrentTrack {
-  @override
-  Track? build() {
-    return null;
-  }
+// @Riverpod(keepAlive: true)
+// class CurrentTrack extends _$CurrentTrack {
+//   @override
+//   Track? build() {
+//     return null;
+//   }
 
-  update(Track track) {
-    state = track;
-  }
-}
+//   update(Track track) {
+//     state = track;
+//   }
+// }
 
 @riverpod
 Future<Uint8List> trackBytes(TrackBytesRef ref, Track track) async {

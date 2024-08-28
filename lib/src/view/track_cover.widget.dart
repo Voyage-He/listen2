@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show Colors;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:listen2/src/provider/stateful/player.dart';
 
 import 'package:listen2/src/provider/stateful/track.dart';
 
@@ -47,7 +48,7 @@ class CurrentTrackCover extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    var track = ref.watch(currentTrackProvider);
+    var track = ref.watch(playerStateNotifierProvider.select((it) => it.track));
     if (track != null) {
       return TrackCover(track, width: width, height: height, fit: fit);
     } else {

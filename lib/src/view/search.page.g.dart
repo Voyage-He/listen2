@@ -24,7 +24,7 @@ final tracksAndIsFaviriteProvider =
 
 typedef TracksAndIsFaviriteRef
     = AutoDisposeFutureProviderRef<Map<String, dynamic>>;
-String _$keywordNotifierHash() => r'd5d7dbedf0aa1b8289720d54878f2590556bc312';
+String _$keywordNotifierHash() => r'6d62cc01fe4b402d5bff3dfe24dce7277d7616a8';
 
 /// See also [KeywordNotifier].
 @ProviderFor(KeywordNotifier)

@@ -23,7 +23,7 @@ class Storage {
 
 @Riverpod(keepAlive: true)
 Future<Storage> hiveStorage(HiveStorageRef ref) async {
-  await Hive.initFlutter();
+  await Hive.initFlutter('./hive');
   Hive.registerAdapter(TrackAdapter());
 
   var setting = await Hive.openBox('setting');

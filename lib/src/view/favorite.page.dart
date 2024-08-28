@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show Theme, Colors, Divider, Icons;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/stateful/favorite.dart';
+import 'package:listen2/src/provider/stateful/player.dart';
 import 'package:listen2/src/provider/stateful/track.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -27,11 +28,9 @@ class FavoratePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // 收藏bvid（甚至track完整信息）的本地存储，以及收藏页面列表展示
     var tracks = ref.watch(favoriteTracksProvider);
-    print(tracks);
 
     var w = tracks.when(
         data: (value) {
-          print(value);
           return Column(
             children: [
               GestureDetector(
@@ -68,7 +67,7 @@ class FavoratePage extends ConsumerWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
-        ref.read(currentTrackProvider.notifier).update(track);
+        ref.read(playerStateNotifierProvider.notifier).playTrack(track);
       },
       child: Padding(
         padding: const EdgeInsets.all(10),
@@ -82,9 +81,10 @@ class FavoratePage extends ConsumerWidget {
             ),
             GestureDetector(
                 onTap: () {
-                  // ref
-                  //     .read(favoriteIdsNotifierProvider.notifier)
-                  //     .toggle(track.bvid);
+                  print(track.bvid);
+                  ref
+                      .read(favoriteIdsNotifierProvider.notifier)
+                      .toggle(track.bvid);
                 },
                 child: const Icon(Icons.favorite_outlined,
                     color: Colors.redAccent)),

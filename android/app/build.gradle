@@ -45,6 +45,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            // 禁用调试日志
+            buildConfigField "boolean", "LOGGING_ENABLED", "false"
+        }
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.

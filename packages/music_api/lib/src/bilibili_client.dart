@@ -90,7 +90,7 @@ class BilibiliClient {
     String pic = res.json()['data']['pic'];
     String author = res.json()['data']['owner']['name'];
 
-    return [bvid2, title, author, pic];
+    return [bvid, title, author, pic];
   }
 
   Future<String> getAudioUrl(String bvid, int cid) async {

@@ -39,16 +39,17 @@ class FavoratePage extends ConsumerWidget {
                 },
                 child: Text("return"),
               ),
-              ListView.separated(
-                  shrinkWrap: true,
-                  separatorBuilder: (context, index) => const Divider(
-                        color: Colors.black26,
-                        height: 1,
-                      ),
-                  itemCount: value.length,
-                  itemBuilder: (context, index) {
-                    return _favoriteItem(index, value[index], context, ref);
-                  }),
+              Expanded(
+                  child: ListView.separated(
+                      shrinkWrap: true,
+                      separatorBuilder: (context, index) => const Divider(
+                            color: Colors.black26,
+                            height: 1,
+                          ),
+                      itemCount: value.length,
+                      itemBuilder: (context, index) {
+                        return _favoriteItem(index, value[index], context, ref);
+                      })),
             ],
           );
         },

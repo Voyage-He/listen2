@@ -8,13 +8,13 @@ class BilibiliVideoModel {
   final int mid;
   final String pic;
 
-  BilibiliVideoModel.fromJson(Map<String, dynamic> json) :
-    title = (json['title'] as String).replaceAll(RegExp(r'<[^>]*>'), ''),
-    bvid = (json['bvid'] as String).split(RegExp(r'BV[\w+]'))[1],
-    avid = json['aid'],
-    author = json['author'],
-    mid = json['mid'],
-    pic = json['pic'];
+  BilibiliVideoModel.fromJson(Map<String, dynamic> json)
+      : title = (json['title']).replaceAll(RegExp(r'<[^>]*>'), ''),
+        bvid = (json['bvid']).split(RegExp('BV'))[1],
+        avid = json['aid'],
+        author = json['author'],
+        mid = json['mid'],
+        pic = json['pic'];
 
   // Map<String, dynamic> toJson() => {
   //   title: title,

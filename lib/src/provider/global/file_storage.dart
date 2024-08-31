@@ -14,7 +14,7 @@ class FileStorage {
 
   FileStorage(this._dir);
 
-  Future write(String path, Uint8List content) async {
+  Future writeBytes(String path, Uint8List content) async {
     final f = File(join(_dir.path, path));
     if (!await f.exists()) {
       await f.create(recursive: true);
@@ -22,8 +22,21 @@ class FileStorage {
     await f.writeAsBytes(content);
   }
 
-  Future<Uint8List> read(String path) async {
+  Future write(String path, String content) async {
+    final f = File(join(_dir.path, path));
+    if (!await f.exists()) {
+      await f.create(recursive: true);
+    }
+    await f.writeAsString(content);
+  }
+
+  Future<Uint8List> readBytes(String path) async {
     final f = File(join(_dir.path, path));
     return f.readAsBytes();
+  }
+
+  Future<String> read(String path) async {
+    final f = File(join(_dir.path, path));
+    return f.readAsString();
   }
 }

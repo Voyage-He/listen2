@@ -1,10 +1,11 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show Colors, Icons, Theme;
 import 'package:audioplayers/audioplayers.dart' as ap;
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/stateful/player.dart';
 import 'package:listen2/src/provider/stateful/track.dart';
+import 'package:listen2/src/view/option.page.dart';
+import 'package:listen2/src/widget/button/button.dart';
 
 import 'search.page.dart';
 import 'favorite.page.dart';
@@ -68,9 +69,27 @@ class Header extends StatelessWidget {
               blurRadius: 10.0,
               spreadRadius: -5)
         ]),
-        child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [_SearchButton(context)]));
+        child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+          Button(
+              onTap: () {
+                Navigator.of(context).push(PageRouteBuilder(
+                  pageBuilder: (context, _, __) => const Option(),
+                  // transitionDuration: const Duration(milliseconds: 2000),
+                  transitionsBuilder:
+                      (context, animation, secondaryAnimation, child) {
+                    return SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(-1.0, 0.0),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    );
+                  },
+                ));
+              },
+              child: const Text('选项')),
+          _SearchButton(context)
+        ]));
   }
 
   Widget _SearchButton(BuildContext context) {

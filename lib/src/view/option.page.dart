@@ -18,6 +18,11 @@ class Option extends ConsumerWidget {
     return Column(
       children: [
         Button(
+            onTap: () {
+              Navigator.of(context).pop();
+            },
+            child: const Text('return')),
+        Button(
             onTap: () async {
               final result = await FilePicker.platform.getDirectoryPath();
 

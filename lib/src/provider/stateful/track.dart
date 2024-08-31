@@ -44,8 +44,6 @@ Future<Track> track(TrackRef ref, String id) async {
 
   tracksBox.put(id, target);
 
-  await tracksBox.close();
-
   return Track(res[0], res[1], res[2], res[3]);
 }
 

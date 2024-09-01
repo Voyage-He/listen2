@@ -54,6 +54,7 @@ class PlayerStateNotifier extends _$PlayerStateNotifier {
   late StreamSubscription _durationChangeSubscription;
   late StreamSubscription _positionChangeSubscription;
   late StreamSubscription _interruptionEventSubscription;
+  bool _isInterrupt = false;
 
   @override
   PlayerState build() {
@@ -93,9 +94,12 @@ class PlayerStateNotifier extends _$PlayerStateNotifier {
         if (event.begin) {
           if (state.state == ap.PlayerState.playing) {
             await pause();
+            _isInterrupt = true;
           }
         } else {
+          if (!_isInterrupt) return;
           await resume();
+          _isInterrupt = false;
         }
       });
     });

@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:listen2/src/provider/stateful/track.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 
 part 'player.g.dart';
 
@@ -52,14 +53,28 @@ class PlayerStateNotifier extends _$PlayerStateNotifier {
   late StreamSubscription _playerStateChangeSubscription;
   late StreamSubscription _durationChangeSubscription;
   late StreamSubscription _positionChangeSubscription;
+  late StreamSubscription _interruptionEventSubscription;
 
   @override
   PlayerState build() {
     _audioHandler = ref.watch(audioHandlerProvider).requireValue;
+
+    //
+    const audioFocusNone = ap.AudioContext(
+        android: ap.AudioContextAndroid(audioFocus: ap.AndroidAudioFocus.none));
+    _audioHandler.player.setAudioContext(audioFocusNone);
+
     _playerStateChangeSubscription =
         _audioHandler.player.onPlayerStateChanged.listen((e) async {
-      print('listened_state$e');
+      debugPrint('listened_state$e');
       state = state.copyWith(state: e);
+      if (e == ap.PlayerState.playing) {
+        _audioHandler.playbackState
+            .add(_audioHandler.playbackState.value.copyWith(playing: true));
+      } else {
+        _audioHandler.playbackState
+            .add(_audioHandler.playbackState.value.copyWith(playing: false));
+      }
     });
 
     _durationChangeSubscription =
@@ -72,11 +87,25 @@ class PlayerStateNotifier extends _$PlayerStateNotifier {
       state = state.copyWith(now: e);
     });
 
+    AudioSession.instance.then((session) {
+      _interruptionEventSubscription =
+          session.interruptionEventStream.listen((event) async {
+        if (event.begin) {
+          if (state.state == ap.PlayerState.playing) {
+            await pause();
+          }
+        } else {
+          await resume();
+        }
+      });
+    });
+
     ref.onDispose(() {
       debugPrint('info: call player disposal');
       _positionChangeSubscription.cancel();
       _durationChangeSubscription.cancel();
       _playerStateChangeSubscription.cancel();
+      _interruptionEventSubscription.cancel();
       _audioHandler.dispose();
     });
 
@@ -88,25 +117,26 @@ class PlayerStateNotifier extends _$PlayerStateNotifier {
 
     await _audioHandler.player.release();
 
+    final session = await AudioSession.instance;
+    if (!(await session.setActive(true))) return;
+
     var bytes = await ref.read(trackBytesProvider(track).future);
     await _audioHandler.player.play(ap.BytesSource(bytes));
-    _audioHandler.playbackState
-        .add(_audioHandler.playbackState.value.copyWith(playing: true));
 
     state = state.copyWith(track: track);
   }
 
   Future<void> pause() async {
     await _audioHandler.player.pause();
-    _audioHandler.playbackState
-        .add(_audioHandler.playbackState.value.copyWith(playing: false));
   }
 
   Future<void> resume() async {
     if (state == ap.PlayerState.completed) return;
+
+    final session = await AudioSession.instance;
+    if (!(await session.setActive(true))) return;
+
     await _audioHandler.player.resume();
-    _audioHandler.playbackState
-        .add(_audioHandler.playbackState.value.copyWith(playing: true));
   }
 
   Future<void> seek(Duration position) async {
@@ -117,11 +147,14 @@ class PlayerStateNotifier extends _$PlayerStateNotifier {
 
 @riverpod
 Future<AudioHandler> audioHandler(AudioHandlerRef ref) async {
-  return await AudioService.init(
+  final session = await AudioSession.instance;
+  await session.configure(const AudioSessionConfiguration.music());
+  final audioHandler = AudioService.init(
     builder: () => AudioHandler(),
     config: const AudioServiceConfig(
-      androidNotificationChannelId: 'com.mycompany.myapp.channel.audio',
-      androidNotificationChannelName: 'Music playback',
+      androidStopForegroundOnPause: false,
     ),
   );
+
+  return audioHandler;
 }

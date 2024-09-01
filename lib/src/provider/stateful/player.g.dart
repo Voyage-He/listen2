@@ -6,7 +6,7 @@ part of 'player.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$audioHandlerHash() => r'cb8aacca62210befca61d0ebd6e902c743666f13';
+String _$audioHandlerHash() => r'4e97273c6f8f19d1c19f95e664fe35a690c7781e';
 
 /// See also [audioHandler].
 @ProviderFor(audioHandler)
@@ -21,7 +21,7 @@ final audioHandlerProvider = AutoDisposeFutureProvider<AudioHandler>.internal(
 
 typedef AudioHandlerRef = AutoDisposeFutureProviderRef<AudioHandler>;
 String _$playerStateNotifierHash() =>
-    r'a1415419c9ab400ef70cd8ce8c1444e5d8f8bed5';
+    r'57ec94e041ff1fdc112fa9af50c8c6cfdb200c60';
 
 /// See also [PlayerStateNotifier].
 @ProviderFor(PlayerStateNotifier)

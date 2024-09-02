@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/stateful/favorite.dart';
 import 'package:listen2/src/provider/stateful/player.dart';
 import 'package:listen2/src/provider/stateful/track.dart';
+import 'package:listen2/src/widget/button/button.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'favorite.page.g.dart';
@@ -33,12 +34,11 @@ class FavoratePage extends ConsumerWidget {
         data: (value) {
           return Column(
             children: [
-              GestureDetector(
-                onTap: () {
-                  Navigator.of(context).pop(context);
-                },
-                child: Text("return"),
-              ),
+              Button(
+                  onTap: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('return')),
               Expanded(
                   child: ListView.separated(
                       shrinkWrap: true,

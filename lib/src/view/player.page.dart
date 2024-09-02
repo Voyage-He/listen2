@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show Theme;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/stateful/player.dart';
+import 'package:listen2/src/widget/button/button.dart';
 
 import './track_cover.widget.dart';
 import 'package:listen2/src/widget/progress_bar.dart';
@@ -15,6 +16,13 @@ class Player extends StatelessWidget {
     return Stack(
       children: [
         _blurImage(),
+        Align(
+            alignment: Alignment.topLeft,
+            child: Button(
+                onTap: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('return'))),
         const Align(
             alignment: Alignment(0, -0.5),
             child: CurrentTrackCover(width: 250, height: 250)),
@@ -31,7 +39,9 @@ class Player extends StatelessWidget {
       child: ImageFiltered(
           imageFilter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
           child: const CurrentTrackCover(
-              height: double.infinity, fit: BoxFit.cover)),
+              height: double.infinity,
+              width: double.infinity,
+              fit: BoxFit.cover)),
     );
   }
 

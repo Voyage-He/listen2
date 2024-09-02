@@ -11,7 +11,6 @@ class BilibiliClientNotifier extends _$BilibiliClientNotifier {
   @override
   Future<BilibiliClient> build() async {
     // try {
-    print("test================");
     var value = (await ref.watch(hiveStorageProvider.future)).value;
     var client = BilibiliClient(value);
     await client.init();

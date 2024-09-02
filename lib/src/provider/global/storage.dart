@@ -1,7 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:listen2/src/provider/stateful/track.dart';
+import 'package:path/path.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:path_provider/path_provider.dart';
 
 part 'storage.g.dart';
 
@@ -23,7 +27,8 @@ class Storage {
 
 @Riverpod(keepAlive: true)
 Future<Storage> hiveStorage(HiveStorageRef ref) async {
-  await Hive.initFlutter('./hive');
+  final docDir = await getApplicationDocumentsDirectory();
+  await Hive.initFlutter(join(docDir.path, 'listen2'));
   Hive.registerAdapter(TrackAdapter());
 
   var setting = await Hive.openBox('setting');

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/global/storage.dart';
 import 'package:listen2/src/provider/repo/bilibili.dart';
+import 'package:listen2/src/provider/stateful/favorite.dart';
 import 'package:listen2/src/provider/stateful/player.dart';
 
 import 'src/view/home.page.dart';
@@ -48,6 +49,7 @@ class App extends ConsumerWidget {
     var storage = ref.watch(hiveStorageProvider);
     ref.watch(bilibiliClientNotifierProvider);
     ref.watch(audioHandlerProvider);
+    ref.watch(favoriteIdsNotifierProvider);
 
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,

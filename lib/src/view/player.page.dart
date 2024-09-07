@@ -50,8 +50,7 @@ class Player extends StatelessWidget {
       builder: (context, ref, child) {
         var playerState = ref.watch(playerStateNotifierProvider);
         final now = playerState.now;
-        // final length = playerState.length;
-        final length = const Duration(minutes: 3);
+        final length = playerState.length;
         final nowMin = now.inMinutes;
         final nowSec = now.inSeconds - (60 * nowMin);
         final lengthMin = length.inMinutes;

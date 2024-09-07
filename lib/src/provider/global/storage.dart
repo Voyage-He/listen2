@@ -45,11 +45,5 @@ Future<Storage> hiveStorage(HiveStorageRef ref) async {
     }
   }
 
-  ref.onDispose(() {
-    setting.close();
-    value.close();
-    binary.close();
-    debugPrint("info: HiveStorage closed");
-  });
   return Storage(setting, value, binary);
 }

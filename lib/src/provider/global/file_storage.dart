@@ -2,13 +2,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 
-// Future<Storage> initStorage() async {
-//   Directory temp = await getTemporaryDirectory();
-//   Directory doc = await getApplicationDocumentsDirectory();
-
-//   return Storage(FileStorage(temp), FileStorage(doc));
-// }
-
 class FileStorage {
   final Directory _dir;
 

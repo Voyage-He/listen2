@@ -1,9 +1,16 @@
-// import 'package:riverpod/src/framework.dart';
-// import 'package:flutter_riverpod/flutter_riverpod.dart';
-// import 'package:riverpod_annotation/riverpod_annotation.dart';
-// import 'package:sqflite/sqflite.dart';
+import 'package:listen2/src/provider/global/storage.dart';
+import 'package:listen2/src/provider/repo/bilibili.dart';
+import 'package:listen2/src/provider/stateful/favorite.dart';
+import 'package:listen2/src/provider/stateful/player.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-// import 'database/database.dart';
-// import 'file_storage.dart';
+part 'main.g.dart';
 
-// part 'main.g.dart';
+@riverpod
+Future<void> globalReady(GlobalReadyRef ref) async {
+  ref.watch(hiveStorageProvider);
+  ref.watch(bilibiliClientNotifierProvider);
+  ref.watch(audioHandlerProvider);
+  ref.watch(favoriteIdsNotifierProvider);
+  return;
+}

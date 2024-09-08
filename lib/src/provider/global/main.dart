@@ -8,9 +8,9 @@ part 'main.g.dart';
 
 @riverpod
 Future<void> globalReady(GlobalReadyRef ref) async {
-  ref.watch(hiveStorageProvider);
-  ref.watch(bilibiliClientNotifierProvider);
-  ref.watch(audioHandlerProvider);
-  ref.watch(favoriteIdsNotifierProvider);
+  await ref.watch(hiveStorageProvider.future);
+  await ref.watch(bilibiliClientNotifierProvider.future);
+  await ref.watch(audioHandlerProvider.future);
+  await ref.watch(favoriteIdsNotifierProvider.future);
   return;
 }

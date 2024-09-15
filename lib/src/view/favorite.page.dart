@@ -5,6 +5,7 @@ import 'package:listen2/src/provider/stateful/favorite.dart';
 import 'package:listen2/src/provider/stateful/player.dart';
 import 'package:listen2/src/provider/stateful/track.dart';
 import 'package:listen2/src/widget/button/button.dart';
+import 'package:listen2/src/widget/popup.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'favorite.page.g.dart';
@@ -22,12 +23,17 @@ Future<List<Track>> favoriteTracks(FavoriteTracksRef ref) async {
   return await Future.wait(futures);
 }
 
+final popupTrackProvider = StateProvider<Track?>((ref) {
+  return null;
+});
+
 class FavoratePage extends ConsumerWidget {
-  const FavoratePage({super.key});
+  final _favoActionPopupKey = GlobalKey<PopupState>();
+
+  FavoratePage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 收藏bvid（甚至track完整信息）的本地存储，以及收藏页面列表展示
     var tracks = ref.watch(favoriteTracksProvider);
 
     var w = tracks.when(
@@ -60,7 +66,26 @@ class FavoratePage extends ConsumerWidget {
         },
         loading: () => const Text('loading'));
 
-    return Container(color: Colors.white, child: w);
+    final track = ref.watch(popupTrackProvider);
+    return Stack(children: [
+      Container(color: Colors.white, child: w),
+      Popup(
+        track == null
+            ? Container()
+            : Center(
+                child: Button(
+                  onTap: () {
+                    ref
+                        .read(favoriteIdsNotifierProvider.notifier)
+                        .toggle(track.bvid);
+                    _favoActionPopupKey.currentState!.toggle();
+                  },
+                  child: Text('取消收藏'),
+                ),
+              ),
+        key: _favoActionPopupKey,
+      ),
+    ]);
   }
 
   Widget _favoriteItem(
@@ -81,14 +106,20 @@ class FavoratePage extends ConsumerWidget {
               child: _trackInfo(context, track),
             ),
             GestureDetector(
-                onTap: () {
-                  print(track.bvid);
-                  ref
-                      .read(favoriteIdsNotifierProvider.notifier)
-                      .toggle(track.bvid);
-                },
-                child: const Icon(Icons.favorite_outlined,
-                    color: Colors.redAccent)),
+              onTap: () {
+                // print(track.bvid);
+                // ref
+                //     .read(favoriteIdsNotifierProvider.notifier)
+                //     .toggle(track.bvid);
+                // ref.read(popupTrackProvider.s);
+                ref.read(popupTrackProvider.notifier).state = track;
+                _favoActionPopupKey.currentState!.toggle();
+              },
+              child: const Icon(
+                Icons.list,
+                size: 40,
+              ),
+            ),
           ],
         ),
       ),

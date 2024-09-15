@@ -6,6 +6,7 @@ import 'package:listen2/src/provider/stateful/player.dart';
 import 'package:listen2/src/provider/stateful/track.dart';
 import 'package:listen2/src/view/option.page.dart';
 import 'package:listen2/src/widget/button/button.dart';
+import 'package:listen2/src/widget/popup.dart';
 
 import 'search.page.dart';
 import 'favorite.page.dart';
@@ -14,28 +15,31 @@ import 'player.page.dart';
 import './track_cover.widget.dart';
 
 class Home extends StatelessWidget {
-  const Home({super.key});
+  final _popupKey = GlobalKey<PopupState>();
+
+  Home({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-        // decoration: const BoxDecoration(color: Colors.white),
-        child: Stack(
-      children: [
-        const Align(alignment: Alignment.topCenter, child: Header()),
-        Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(5, 40 + 10, 5, 50),
-            child: _FavoriteButton(context)),
-        const Align(
-          alignment: Alignment.bottomCenter,
-          child: BottomPlayer(),
-        )
-      ],
-    ));
+    return GestureDetector(
+      onVerticalDragUpdate: (e) {
+        print(e);
+        _popupKey.currentState!.open();
+      },
+      child: Stack(children: [
+        Column(
+          children: [
+            Header(),
+            Expanded(child: _favoriteButton(context)),
+            BottomPlayer(),
+          ],
+        ),
+        Popup(Container(), key: _popupKey)
+      ]),
+    );
   }
 
-  Widget _FavoriteButton(BuildContext context) {
+  Widget _favoriteButton(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
       GestureDetector(
           onTap: () => _navigate2FavoritePage(context),
@@ -50,7 +54,7 @@ class Home extends StatelessWidget {
 
   void _navigate2FavoritePage(BuildContext context) {
     Navigator.of(context).push(PageRouteBuilder(
-      pageBuilder: (context, _, __) => const FavoratePage(),
+      pageBuilder: (context, _, __) => FavoratePage(),
     ));
   }
 }

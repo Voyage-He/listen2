@@ -21,7 +21,7 @@ void main() async {
         WidgetBuilder builder;
         switch (settings.name) {
           case '/':
-            builder = (context) => const Home();
+            builder = (context) => Home();
             break;
           default:
             throw Exception('Invalid route: ${settings.name}');

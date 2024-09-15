@@ -11,6 +11,5 @@ Future<void> globalReady(GlobalReadyRef ref) async {
   await ref.watch(hiveStorageProvider.future);
   await ref.watch(bilibiliClientNotifierProvider.future);
   await ref.watch(audioHandlerProvider.future);
-  await ref.watch(favoriteIdsNotifierProvider.future);
   return;
 }

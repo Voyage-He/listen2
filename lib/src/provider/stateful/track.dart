@@ -36,15 +36,18 @@ Future<Track> track(TrackRef ref, String id) async {
   var track = tracksBox.get(id);
 
   if (track != null) return track;
+  try {
+    var res = await (await ref.watch(bilibiliClientNotifierProvider.future))
+        .getVideoInfo(id);
+    print('from favo ${res[3]}');
+    final target = Track(res[0], res[1], res[2], res[3]);
 
-  var res = await (await ref.watch(bilibiliClientNotifierProvider.future))
-      .getVideoInfo(id);
-  print('from favo ${res[3]}');
-  final target = Track(res[0], res[1], res[2], res[3]);
+    tracksBox.put(id, target);
 
-  tracksBox.put(id, target);
-
-  return Track(res[0], res[1], res[2], res[3]);
+    return Track(res[0], res[1], res[2], res[3]);
+  } catch (e) {
+    return Track(id, "wrong", "wrong", "wrong");
+  }
 }
 
 // @Riverpod(keepAlive: true)

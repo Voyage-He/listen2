@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/stateful/player.dart';
 import 'package:listen2/src/widget/button/button.dart';
 
-import './track_cover.widget.dart';
+import '../../../widget/track_cover.widget.dart';
 import 'package:listen2/src/widget/progress_bar.dart';
 
 class Player extends StatelessWidget {

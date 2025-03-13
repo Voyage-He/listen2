@@ -4,15 +4,15 @@ import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/stateful/player.dart';
 import 'package:listen2/src/provider/stateful/track.dart';
-import 'package:listen2/src/view/option.page.dart';
+import 'package:listen2/src/view/page/option/option.page.dart';
 import 'package:listen2/src/widget/button/button.dart';
 import 'package:listen2/src/widget/popup.dart';
 
-import 'search.page.dart';
-import 'favorite.page.dart';
-import 'player.page.dart';
+import '../search/search.page.dart';
+import '../favorite/favorite.page.dart';
+import '../player/player.page.dart';
 
-import './track_cover.widget.dart';
+import '../../../widget/track_cover.widget.dart';
 
 class Home extends StatelessWidget {
   final _popupKey = GlobalKey<PopupState>();

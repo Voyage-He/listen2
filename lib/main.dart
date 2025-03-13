@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/global/main.dart';
 
-import 'src/view/home.page.dart';
+import 'src/view/page/home/home.page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

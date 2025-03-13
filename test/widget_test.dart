@@ -12,7 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:listen2/src/provider/global/storage.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:listen2/src/provider/stateful/favorite.dart';
-import 'package:listen2/src/view/favorite.page.dart';
+import 'package:listen2/src/view/page/favorite/favorite.page.dart';
 
 /// A testing utility which creates a [ProviderContainer] and automatically
 /// disposes it at the end of the test.

@@ -2,8 +2,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show Theme, Colors, Divider, Icons;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/stateful/favorite.dart';
-import 'package:listen2/src/provider/stateful/player.dart';
-import 'package:listen2/src/provider/stateful/track.dart';
+import 'package:listen2/src/provider/global/player.dart';
+import 'package:listen2/src/provider/repo/track.dart';
 import 'package:listen2/src/widget/button/button.dart';
 import 'package:listen2/src/widget/popup.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -68,7 +68,7 @@ class FavoratePage extends ConsumerWidget {
 
     final track = ref.watch(popupTrackProvider);
     return Stack(children: [
-      Container(color: Colors.white, child: w),
+      Expanded(child: Container(color: Colors.white, child: w)),
       Popup(
         track == null
             ? Container()

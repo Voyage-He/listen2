@@ -4,7 +4,6 @@ import 'package:listen2/src/provider/global/storage.dart';
 import 'package:listen2/src/provider/repo/bilibili.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:http/http.dart' as http;
-
 part 'track.g.dart';
 
 @HiveType(typeId: 1)
@@ -49,18 +48,6 @@ Future<Track> track(TrackRef ref, String id) async {
     return Track(id, "wrong", "wrong", "wrong");
   }
 }
-
-// @Riverpod(keepAlive: true)
-// class CurrentTrack extends _$CurrentTrack {
-//   @override
-//   Track? build() {
-//     return null;
-//   }
-
-//   update(Track track) {
-//     state = track;
-//   }
-// }
 
 @riverpod
 Future<Uint8List> trackBytes(TrackBytesRef ref, Track track) async {

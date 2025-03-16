@@ -5,9 +5,9 @@ part './bilibili_model.dart';
 
 class BilibiliClient {
   bool hasCookie = false; // hasCookie的用处？
-  Box value;
+  Box box;
 
-  BilibiliClient(this.value);
+  BilibiliClient(this.box);
 
   Future<void> init() async {
     var cookies = await getCookiesFromLocal();
@@ -24,7 +24,7 @@ class BilibiliClient {
   }
 
   Future<CookieJar?> getCookiesFromLocal() async {
-    final String? cookiesStr = value.get('bilibili_cookies');
+    final String? cookiesStr = box.get('bilibili_cookies');
 
     if (cookiesStr == null) return null;
 
@@ -51,7 +51,7 @@ class BilibiliClient {
       }
     });
 
-    await value.put('bilibili_cookies', str);
+    await box.put('bilibili_cookies', str);
   }
 
   Future<void> setCookie(CookieJar cookies) async {

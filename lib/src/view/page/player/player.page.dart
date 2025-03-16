@@ -2,7 +2,9 @@ import 'dart:ui';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show Theme;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:listen2/src/provider/stateful/player.dart';
+import 'package:listen2/src/provider/global/player.dart';
+import 'package:listen2/src/provider/repo/bilibili.dart';
+import 'package:listen2/src/ref_extensions.dart';
 import 'package:listen2/src/widget/button/button.dart';
 
 import '../../../widget/track_cover.widget.dart';
@@ -48,7 +50,7 @@ class Player extends StatelessWidget {
   Widget _PlayerProgress() {
     return Consumer(
       builder: (context, ref, child) {
-        var playerState = ref.watch(playerStateNotifierProvider);
+        var playerState = ref.playerState;
         final now = playerState.now;
         final length = playerState.length;
         final nowMin = now.inMinutes;

@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/repo/bilibili.dart';
 import 'package:listen2/src/provider/stateful/favorite.dart';
-import 'package:listen2/src/provider/stateful/player.dart';
-import 'package:listen2/src/provider/stateful/track.dart';
+import 'package:listen2/src/provider/repo/track.dart';
 
 import 'package:listen2/src/widget/input/input.dart';
 

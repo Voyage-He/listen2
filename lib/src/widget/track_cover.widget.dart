@@ -1,10 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show Colors;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:listen2/src/provider/stateful/player.dart';
+import 'package:listen2/src/provider/global/player.dart';
 
-import 'package:listen2/src/provider/stateful/track.dart';
+import 'package:listen2/src/provider/repo/track.dart';
 
 class TrackCover extends ConsumerWidget {
   final Track track;

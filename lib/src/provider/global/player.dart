@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:flutter/widgets.dart';
-import 'package:listen2/src/provider/stateful/track.dart';
+import 'package:listen2/src/provider/repo/track.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
@@ -47,7 +47,7 @@ class AudioHandler extends BaseAudioHandler {
   }
 }
 
-@riverpod
+@Riverpod(keepAlive: true)
 class PlayerStateNotifier extends _$PlayerStateNotifier {
   late AudioHandler _audioHandler;
   late StreamSubscription _playerStateChangeSubscription;
@@ -149,7 +149,7 @@ class PlayerStateNotifier extends _$PlayerStateNotifier {
   }
 }
 
-@riverpod
+@Riverpod(keepAlive: true)
 Future<AudioHandler> audioHandler(AudioHandlerRef ref) async {
   final session = await AudioSession.instance;
   await session.configure(const AudioSessionConfiguration.music());

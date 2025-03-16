@@ -4,7 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/global/main.dart';
 
-import 'src/view/page/home/home.page.dart';
+import 'package:listen2/src/view/page/home/home.page.dart';
+import 'package:listen2/src/widget/bottom_player.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +28,22 @@ void main() async {
             throw Exception('Invalid route: ${settings.name}');
         }
         return PageRouteBuilder(
-            pageBuilder: (context, _, __) => builder(context));
+            pageBuilder: (context, _, __) => Builder(builder: (context) {
+                  return Column(
+                    children: [
+                      Expanded(
+                          child: Navigator(
+                        initialRoute: '/',
+                        onGenerateRoute: (settings) {
+                          return PageRouteBuilder(
+                              pageBuilder: (context, _, __) =>
+                                  builder(context));
+                        },
+                      )),
+                      const BottomPlayer()
+                    ],
+                  );
+                }));
       },
       builder: (context, child) => App(child: child!),
     ),
@@ -52,12 +68,14 @@ class App extends ConsumerWidget {
       DeviceOrientation.portraitDown,
     ]);
 
+    const splash = Text('initialzing');
+
     var w = isReady.when(
       data: (data) => child,
-      loading: () => const Text('initialzing'),
-      error: (o, t) {
-        debugPrint(o.toString());
-        debugPrint(t.toString());
+      loading: () => splash,
+      error: (obj, stackTrace) {
+        debugPrint(obj.toString());
+        debugPrint(stackTrace.toString());
         return const Text('Error');
       },
     );
@@ -65,6 +83,8 @@ class App extends ConsumerWidget {
     return GestureDetector(
         onTap: () => Focus.of(context).requestFocus(FocusNode()),
         onVerticalDragStart: (_) => Focus.of(context).requestFocus(FocusNode()),
-        child: Container(color: Colors.white, child: SafeArea(child: w)));
+        child: SafeArea(
+          child: Container(color: Colors.white, child: w),
+        ));
   }
 }

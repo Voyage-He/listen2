@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:listen2/src/provider/global/storage.dart';
-import 'package:listen2/src/provider/stateful/track.dart';
+import 'package:listen2/src/provider/repo/track.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'favorite.g.dart';

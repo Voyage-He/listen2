@@ -33,9 +33,18 @@ final popupTrackProvider = StateProvider<Track?>((ref) {
   return null;
 });
 
-@riverpod
-bool reverseSort(ReverseSortRef ref) {
+final reverseProvider = StateProvider<bool>((ref) {
   return false;
+});
+
+@riverpod
+Future<List<Track>> sortedList(SortedListRef ref, String playlistName) async {
+  final tracks = await ref.watch(playlistTracksProvider(playlistName).future);
+  final reverse = ref.watch(reverseProvider);
+  if (reverse) {
+    return tracks.reversed.toList();
+  }
+  return tracks;
 }
 
 @Riverpod(keepAlive: true)
@@ -61,17 +70,30 @@ class PlaylistPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    var tracks = ref.watch(playlistTracksProvider(playlistName));
+    var tracks = ref.watch(sortedListProvider(playlistName));
+    final reverse = ref.watch(reverseProvider);
 
     var main = tracks.when(
         data: (value) {
           return Column(
             children: [
-              Button(
-                  onTap: () {
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text('return')),
+              Row(
+                children: [
+                  Button(
+                    onTap: () {
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('return')
+                  ),
+                  Button(
+                    onTap: () {
+                      ref.read(reverseProvider.notifier).state = !ref.read(reverseProvider);
+                    },
+                    child: const Text('reverse'),
+                    color: reverse ? Colors.grey : Colors.blue,
+                  ),
+                ],
+              ),
               Expanded(
                   child: ListView.separated(
                       shrinkWrap: true,
@@ -206,7 +228,8 @@ class PlaylistPage extends ConsumerWidget {
                         return Button(
                           onTap: () {
                             ref
-                                .read(playlistIdsNotifierProvider(name).notifier)
+                                .read(
+                                    playlistIdsNotifierProvider(name).notifier)
                                 .toggle(track!.bvid);
                           },
                           color: isCollected ? Colors.grey : Colors.blue,

@@ -11,7 +11,7 @@ class BilibiliClientNotifier extends _$BilibiliClientNotifier {
   Future<BilibiliClient> build() async {
     // try {
     var storage = ref.watchSolvedFuture(hiveStorageProvider);
-    var client = BilibiliClient(storage.value);
+    var client = BilibiliClient(storage!.value);
     await client.init();
     print("bili client inited");
     return client;

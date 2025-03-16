@@ -45,19 +45,25 @@ class PopupState extends State<Popup> with SingleTickerProviderStateMixin {
     return Stack(
       children: [
         modal(),
-        SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, 3), // 从屏幕底部滑入
-            end: const Offset(0, 2),
-          ).animate(CurvedAnimation(
-            parent: _animationController,
-            curve: Curves.easeInOut,
-          )),
-          child: Container(
-            width: double.infinity,
-            height: 300,
-            // color: Colors.grey,
-            child: widget.child,
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 400,
+          child: Center(
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 1), // 从屏幕底部滑入
+                end: const Offset(0, 0),
+              ).animate(CurvedAnimation(
+                parent: _animationController,
+                curve: Curves.easeInOut,
+              )),
+              child: Container(
+                // color: Colors.grey,
+                child: widget.child,
+              ),
+            ),
           ),
         ),
       ],

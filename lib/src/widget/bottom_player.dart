@@ -15,6 +15,7 @@ class BottomPlayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(audioHandlerProvider).valueOrNull == null) return const SizedBox.shrink();
     var track = ref.watch(playerStateNotifierProvider.select((it) => it.track));
     return GestureDetector(
       onTap: () => _navigate2PlayerPage(context, track),

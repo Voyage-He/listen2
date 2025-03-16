@@ -3,19 +3,19 @@ import 'package:listen2/src/provider/global/storage.dart';
 import 'package:listen2/src/provider/global/player.dart';
 
 extension RefExtension on Ref {
-  T watchSolvedFuture<T>(FutureProvider<T> provider) {
-    return watch(provider).requireValue;
+  T? watchSolvedFuture<T>(FutureProvider<T> provider) {
+    return watch(provider).valueOrNull;
   }
 
-  Storage get storage => watchSolvedFuture(hiveStorageProvider);
+  Storage get storage => watchSolvedFuture(hiveStorageProvider)!;
   PlayerState get playerState => watch(playerStateNotifierProvider);
 }
 
 extension WidgetRefExtension on WidgetRef {
-  T watchSolvedFuture<T>(FutureProvider<T> provider) {
-    return watch(provider).requireValue;
+  T? watchSolvedFuture<T>(FutureProvider<T> provider) {
+    return watch(provider).valueOrNull;
   }
 
-  Storage get storage => watchSolvedFuture(hiveStorageProvider);
+  Storage get storage => watchSolvedFuture(hiveStorageProvider)!;
   PlayerState get playerState => watch(playerStateNotifierProvider);
 }

@@ -7,7 +7,7 @@ part 'main.g.dart';
 
 @riverpod
 Future<void> globalReady(GlobalReadyRef ref) async {
-  Future.wait([
+  await Future.wait([
     ref.watch(hiveStorageProvider.future),
     ref.watch(bilibiliClientNotifierProvider.future),
     ref.watch(audioHandlerProvider.future) // android player initization

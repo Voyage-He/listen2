@@ -1,5 +1,3 @@
-import 'dart:ffi';
-
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show Theme, Colors, Divider, Icons;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -117,7 +115,7 @@ class PlaylistPage extends ConsumerWidget {
 
     final track = ref.watch(popupTrackProvider);
     return Stack(children: [
-      Expanded(child: Container(color: Colors.white, child: main)),
+      Container(color: Colors.white, child: main),
       Popup(
         track == null
             ? Container()
@@ -216,31 +214,33 @@ class PlaylistPage extends ConsumerWidget {
                     child: Text('新建歌单'),
                   ),
                   if (playlistNames.valueOrNull?.isNotEmpty ?? false)
-                    ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: playlistNames.valueOrNull!.length,
-                      itemBuilder: (context, index) {
-                        final name = playlistNames.valueOrNull![index];
-                        final isCollected = ref
-                            .watch(playlistIdsNotifierProvider(name))
-                            .valueOrNull!
-                            .contains(track!.bvid);
-                        return Button(
-                          onTap: () {
-                            ref
-                                .read(
-                                    playlistIdsNotifierProvider(name).notifier)
-                                .toggle(track!.bvid);
-                          },
-                          color: isCollected ? Colors.grey : Colors.blue,
-                          child: Row(
-                            children: [
-                              Text(playlistNames.valueOrNull![index]),
-                              Icon(isCollected ? Icons.check : Icons.add),
-                            ],
-                          ),
-                        );
-                      },
+                    Expanded(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: playlistNames.valueOrNull!.length,
+                        itemBuilder: (context, index) {
+                          final name = playlistNames.valueOrNull![index];
+                          final isCollected = ref
+                              .watch(playlistIdsNotifierProvider(name))
+                              .valueOrNull
+                              ?.contains(track!.bvid) ?? false;
+                          return Button(
+                            onTap: () {
+                              ref
+                                  .read(
+                                      playlistIdsNotifierProvider(name).notifier)
+                                  .toggle(track!.bvid);
+                            },
+                            color: isCollected ? Colors.grey : Colors.blue,
+                            child: Row(
+                              children: [
+                                Text(playlistNames.valueOrNull![index]),
+                                Icon(isCollected ? Icons.check : Icons.add),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
                     ),
                 ],
               ),

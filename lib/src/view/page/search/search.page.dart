@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:listen2/src/provider/global/player.dart';
 import 'package:listen2/src/provider/repo/bilibili.dart';
-import 'package:listen2/src/provider/stateful/favorite.dart';
+import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
 import 'package:listen2/src/provider/repo/track.dart';
 
 import 'package:listen2/src/widget/input/input.dart';
@@ -53,7 +54,7 @@ class SearchResult extends _$SearchResult {
 Future<Map<String, dynamic>> tracksAndIsFavirite(
     TracksAndIsFaviriteRef ref) async {
   var tracks = await ref.watch(searchResultProvider.future);
-  var favo = await ref.watch(favoriteIdsNotifierProvider.future);
+  var favo = await ref.watch(playlistIdsNotifierProvider('favorite').future);
   var isFavorite =
       List.generate(tracks.length, (i) => favo.contains(tracks[i].bvid));
   return {'tracks': tracks, 'isFavorite': isFavorite};
@@ -122,7 +123,7 @@ class Search extends ConsumerWidget {
                   margin: const EdgeInsets.only(right: 20),
                   child: GestureDetector(
                       onTap: () => ref
-                          .read(favoriteIdsNotifierProvider.notifier)
+                          .read(playlistIdsNotifierProvider('favorite').notifier)
                           .toggle(track.bvid),
                       child: isFavorite
                           ? const Icon(

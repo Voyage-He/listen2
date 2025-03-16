@@ -29,17 +29,33 @@ void main() async {
         }
         return PageRouteBuilder(
             pageBuilder: (context, _, __) => Builder(builder: (context) {
+              final subNavigatorKey = GlobalKey<NavigatorState>();
                   return Column(
                     children: [
                       Expanded(
-                          child: Navigator(
-                        initialRoute: '/',
-                        onGenerateRoute: (settings) {
-                          return PageRouteBuilder(
-                              pageBuilder: (context, _, __) =>
-                                  builder(context));
-                        },
-                      )),
+                          child: PopScope(
+                            canPop: false,
+                            onPopInvokedWithResult: (didPop, result) async {
+                              if (subNavigatorKey.currentState!.canPop()) {
+                                subNavigatorKey.currentState!.pop();
+                                return;
+                              }
+                              if (Navigator.of(context).canPop()) {
+                                Navigator.of(context).pop();
+                              } else {
+                                SystemNavigator.pop();
+                              }
+                            },
+                            child: Navigator(
+                              key: subNavigatorKey,
+                              initialRoute: '/',
+                              onGenerateRoute: (settings) {
+                                return PageRouteBuilder(
+                                    pageBuilder: (context, _, __) =>
+                                        builder(context));
+                              },
+                            ),
+                          )),
                       const BottomPlayer()
                     ],
                   );

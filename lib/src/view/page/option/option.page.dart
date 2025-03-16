@@ -1,11 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
-import 'package:flutter/material.dart' show Colors, Icons, Theme;
 import 'package:listen2/src/provider/global/file_storage.dart';
-import 'package:listen2/src/provider/stateful/favorite.dart';
+import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
 import 'package:listen2/src/widget/button/button.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,7 +27,7 @@ class Option extends ConsumerWidget {
               if (result != null) {
                 print(result);
                 final favos =
-                    ref.read(favoriteIdsNotifierProvider).requireValue;
+                    await ref.read(playlistIdsNotifierProvider('favorite').future);
                 final fs = FileStorage(Directory(result));
                 await fs.write(
                     'listen2.back', jsonEncode({'favoriteIds': favos}));
@@ -55,8 +53,8 @@ class Option extends ConsumerWidget {
                 List<String> favos =
                     List<String>.from(favoJson["favoriteIds"] as List);
                 ref
-                    .read(favoriteIdsNotifierProvider.notifier)
-                    .setFavorites(favos);
+                    .read(playlistIdsNotifierProvider('favorite').notifier)
+                    .set(favos);
               } else {
                 // User canceled the picker
               }

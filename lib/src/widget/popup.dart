@@ -41,7 +41,6 @@ class PopupState extends State<Popup> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    print('adsa' + _animationController.status.toString());
     if (_animationController.isDismissed) return const SizedBox.shrink();
     return Stack(
       children: [

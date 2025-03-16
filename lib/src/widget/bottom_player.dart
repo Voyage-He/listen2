@@ -74,7 +74,7 @@ class BottomPlayer extends ConsumerWidget {
 
   void _navigate2PlayerPage(BuildContext context, Track? track) {
     if (track == null) return;
-    Navigator.of(context, rootNavigator: true).push(PageRouteBuilder(
+    Navigator.of(context).push(PageRouteBuilder(
       pageBuilder: (context, _, __) => const Player(),
       transitionDuration: const Duration(milliseconds: 100),
       reverseTransitionDuration: const Duration(milliseconds: 100),

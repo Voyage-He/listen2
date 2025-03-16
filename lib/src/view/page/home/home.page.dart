@@ -1,28 +1,21 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show Colors, Icons, Theme;
-import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:listen2/src/provider/global/player.dart';
-import 'package:listen2/src/provider/repo/track.dart';
+import 'package:listen2/src/provider/repo/playlist_names.dart';
 import 'package:listen2/src/view/page/option/option.page.dart';
 import 'package:listen2/src/widget/button/button.dart';
-import 'package:listen2/src/widget/popup.dart';
-import 'package:listen2/src/ref_extensions.dart';
 
 import '../search/search.page.dart';
-import '../favorite/favorite.page.dart';
-import '../player/player.page.dart';
+import '../playlist/playlist.dart';
 
-import '../../../widget/track_cover.widget.dart';
-import 'package:listen2/src/widget/bottom_player.dart';
-
-class Home extends StatelessWidget {
+class Home extends ConsumerWidget {
   // final _popupKey = GlobalKey<PopupState>();
 
   Home({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playlistNames = ref.watch(playlistNamesProvider);
     return GestureDetector(
       onVerticalDragUpdate: (e) {
         print(e);
@@ -32,41 +25,20 @@ class Home extends StatelessWidget {
         Column(
           children: [
             const Header(),
-            Expanded(child: _favoriteButton(context)),
+            Expanded(child: ListView.builder(
+              itemCount: playlistNames.valueOrNull?.length ?? 0,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 20.0),
+                  child: PlaylistItem(name: playlistNames.valueOrNull?[index] ?? '', ref: ref),
+                );
+              },
+            )),
           ],
         ),
         // Popup(Container(), key: _popupKey)
       ]),
     );
-  }
-
-  Widget _favoriteButton(BuildContext context) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-      GestureDetector(
-          onTap: () => _navigate2FavoritePage(context),
-          child: const Icon(
-            Icons.favorite,
-            color: Colors.redAccent,
-            size: 40,
-          )),
-      Text('收藏', style: Theme.of(context).textTheme.headlineSmall)
-    ]);
-  }
-
-  void _navigate2FavoritePage(BuildContext context) {
-    Navigator.of(context).push(PageRouteBuilder(
-      pageBuilder: (context, _, __) => FavoratePage(),
-      // transitionDuration: const Duration(milliseconds: 2000),
-      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(2.0, 0.0),
-            end: Offset.zero,
-          ).animate(animation),
-          child: child,
-        );
-      },
-    ));
   }
 }
 
@@ -121,6 +93,50 @@ class Header extends StatelessWidget {
         return SlideTransition(
           position: Tween<Offset>(
             begin: const Offset(1.0, 0.0),
+            end: Offset.zero,
+          ).animate(animation),
+          child: child,
+        );
+      },
+    ));
+  }
+}
+
+class PlaylistItem extends ConsumerWidget {
+  const PlaylistItem({super.key, required this.name, required this.ref});
+  final String name;
+  final WidgetRef ref;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return GestureDetector(
+      onTap: () => _navigate2PlaylistPage(context, name),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 20.0),
+        child: Row(
+          children: [
+            Expanded(child: Text(name)),
+            // const Spacer(),
+            name == 'favorite' ? const SizedBox() :
+            GestureDetector(
+              onDoubleTap: () => ref.read(playlistNamesProvider.notifier).toggle(name),
+              onTap: () {},
+              behavior: HitTestBehavior.deferToChild,
+              child: Icon(Icons.delete, size: 30)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _navigate2PlaylistPage(BuildContext context, String playlistName) {
+    Navigator.of(context).push(PageRouteBuilder(
+      pageBuilder: (context, _, __) => PlaylistPage(playlistName: playlistName),
+      // transitionDuration: const Duration(milliseconds: 2000),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(  
+            begin: const Offset(2.0, 0.0),
             end: Offset.zero,
           ).animate(animation),
           child: child,

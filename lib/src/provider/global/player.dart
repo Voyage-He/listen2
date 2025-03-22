@@ -67,9 +67,9 @@ class PlayerStateNotifier extends _$PlayerStateNotifier {
 
     _playerStateChangeSubscription =
         _audioHandler.player.onPlayerStateChanged.listen((e) async {
-      debugPrint('listened_state$e');
       // ignore if state is same, audioplayer will emit same state
       if (e == state.state) return;
+      debugPrint('listened_state$e');
       state = state.copyWith(state: e);
       if (e == ap.PlayerState.playing) {
         _audioHandler.playbackState

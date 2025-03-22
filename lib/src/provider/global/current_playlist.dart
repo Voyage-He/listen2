@@ -31,6 +31,8 @@ class CurrentPlaylistState {
 
 @Riverpod(keepAlive: true)
 class CurrentPlaylistNotifier extends _$CurrentPlaylistNotifier {
+  bool initilized = false;
+
   @override
   CurrentPlaylistState build() {
     final playerBackState = ref.watch(playerStateNotifierProvider.select((state) => state.state));
@@ -49,7 +51,11 @@ class CurrentPlaylistNotifier extends _$CurrentPlaylistNotifier {
     } else if (playerBackState == ap.PlayerState.playing) {
       return currentPlaylistState;
     }
+
+    if (initilized) return currentPlaylistState;
+    initilized = true;
     return load();
+    // TODO fix: this load() cause play call twice when play next automatically
   }
 
   void play(String trackId, List<String> playlistTrackIds) {

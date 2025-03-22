@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:listen2/src/provider/global/current_playlist.dart';
 import 'package:listen2/src/provider/repo/track.dart';
 import 'package:path/path.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -18,9 +19,9 @@ class Storage {
   Box<Uint8List> binary;
 
   // TODO manage other custom Box for provider to use
-  // Map<String, Box> custom;
+  Map<String, Box> custom;
 
-  Storage(this.setting, this.value, this.binary);
+  Storage(this.setting, this.value, this.binary, this.custom);
 }
 
 @Riverpod(keepAlive: true)
@@ -28,6 +29,7 @@ Future<Storage> hiveStorage(HiveStorageRef ref) async {
   final docDir = await getApplicationDocumentsDirectory();
   await Hive.initFlutter(join(docDir.path, 'listen2'));
   Hive.registerAdapter(TrackAdapter());
+  Hive.registerAdapter(CurrentPlaylistStateAdapter());
 
   var setting = await Hive.openBox('setting');
   var value = await Hive.openBox('value');
@@ -43,5 +45,7 @@ Future<Storage> hiveStorage(HiveStorageRef ref) async {
     }
   }
 
-  return Storage(setting, value, binary);
+  final currentPlaylistStateBox = await Hive.openBox<CurrentPlaylistState>('current_playlist_state');
+
+  return Storage(setting, value, binary, {"current_playlist_state": currentPlaylistStateBox});
 }

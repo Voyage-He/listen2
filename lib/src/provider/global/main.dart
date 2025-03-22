@@ -1,3 +1,4 @@
+import 'package:listen2/src/provider/global/current_playlist.dart';
 import 'package:listen2/src/provider/global/player.dart';
 import 'package:listen2/src/provider/global/storage.dart';
 import 'package:listen2/src/provider/repo/bilibili.dart';
@@ -12,5 +13,6 @@ Future<void> globalReady(GlobalReadyRef ref) async {
     ref.watch(bilibiliClientNotifierProvider.future),
     ref.watch(audioHandlerProvider.future) // android player initization
   ]);
+  ref.watch(currentPlaylistNotifierProvider);
   return;
 }

@@ -10,7 +10,7 @@ class PlaylistIdsNotifier extends _$PlaylistIdsNotifier {
   String _key = '';
 
   @override
-  Future<List<String>> build(String playlistName) async {
+  List<String> build(String playlistName) {
     _key = playlistName + _keySuffix;
     var subscription = ref.storage.value.watch(key: _key).listen((e) {
       load();
@@ -18,10 +18,10 @@ class PlaylistIdsNotifier extends _$PlaylistIdsNotifier {
     ref.onDispose(() {
       subscription.cancel();
     });
-    return await get();
+    return get();
   }
 
-  Future<List<String>> get() async {
+  List<String> get() {
     var tracksId =
         ref.storage.value.get(_key, defaultValue: List<String>.empty());
     debugPrint(tracksId.toString());
@@ -31,38 +31,38 @@ class PlaylistIdsNotifier extends _$PlaylistIdsNotifier {
     return tracksId;
   }
 
-  Future set(List<String> ids) async {
-    await ref.storage.value.put(_key, ids);
+  void set(List<String> ids) {
+    ref.storage.value.put(_key, ids);
   }
 
   load() async {
-    state = AsyncData(await get());
+    state = get();
   }
 
   add(String id) async {
-    var previousState = await future;
+    var previousState = state;
     if (previousState.contains(id)) return;
 
     List<String> added = List.from(previousState);
     added.add(id);
-    await set(added);
+    set(added);
 
     return true;
   }
 
   delete(String id) async {
-    var previousState = await future;
+    var previousState = state;
     if (!previousState.contains(id)) return;
 
     List<String> deleted = List.from(previousState);
     deleted.remove(id);
-    await set(deleted);
+    set(deleted);
 
     return true;
   }
 
   toggle(String id) async {
-    var ids = await future;
+    var ids = state;
     debugPrint('toggle track');
     if (ids.contains(id)) {
       await delete(id);

@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show Colors;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:listen2/src/provider/global/current_playlist.dart';
 import 'package:listen2/src/provider/global/main.dart';
 
 import 'package:listen2/src/view/page/home/home.page.dart';

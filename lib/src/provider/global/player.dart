@@ -68,6 +68,8 @@ class PlayerStateNotifier extends _$PlayerStateNotifier {
     _playerStateChangeSubscription =
         _audioHandler.player.onPlayerStateChanged.listen((e) async {
       debugPrint('listened_state$e');
+      // ignore if state is same, audioplayer will emit same state
+      if (e == state.state) return;
       state = state.copyWith(state: e);
       if (e == ap.PlayerState.playing) {
         _audioHandler.playbackState
@@ -128,6 +130,15 @@ class PlayerStateNotifier extends _$PlayerStateNotifier {
     await _audioHandler.player.play(ap.BytesSource(bytes));
 
     state = state.copyWith(track: track);
+  }
+
+  Future<void> playTrackById(String trackId) async {
+    if (trackId.isEmpty) {
+      state = PlayerState();
+      return;
+    }
+    final track = await ref.read(trackProvider(trackId).future);
+    await playTrack(track);
   }
 
   Future<void> pause() async {

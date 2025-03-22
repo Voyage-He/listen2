@@ -27,7 +27,7 @@ class Option extends ConsumerWidget {
               if (result != null) {
                 print(result);
                 final favos =
-                    await ref.read(playlistIdsNotifierProvider('favorite').future);
+                    ref.read(playlistIdsNotifierProvider('favorite'));
                 final fs = FileStorage(Directory(result));
                 await fs.write(
                     'listen2.back', jsonEncode({'favoriteIds': favos}));

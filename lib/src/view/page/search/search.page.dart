@@ -54,7 +54,7 @@ class SearchResult extends _$SearchResult {
 Future<Map<String, dynamic>> tracksAndIsFavirite(
     TracksAndIsFaviriteRef ref) async {
   var tracks = await ref.watch(searchResultProvider.future);
-  var favo = await ref.watch(playlistIdsNotifierProvider('favorite').future);
+  var favo = ref.watch(playlistIdsNotifierProvider('favorite'));
   var isFavorite =
       List.generate(tracks.length, (i) => favo.contains(tracks[i].bvid));
   return {'tracks': tracks, 'isFavorite': isFavorite};

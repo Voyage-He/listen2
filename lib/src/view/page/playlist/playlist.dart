@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show Theme, Colors, Divider, Icons;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:listen2/src/provider/global/current_playlist.dart';
 import 'package:listen2/src/provider/repo/playlist_names.dart';
 import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
 import 'package:listen2/src/provider/global/player.dart';
@@ -16,7 +17,7 @@ part 'playlist.g.dart';
 Future<List<Track>> playlistTracks(
     PlaylistTracksRef ref, String playlistName) async {
   List<String> ids =
-      await ref.watch(playlistIdsNotifierProvider(playlistName).future);
+      ref.watch(playlistIdsNotifierProvider(playlistName));
 
   List<Future<Track>> futures = [];
 
@@ -154,7 +155,7 @@ class PlaylistPage extends ConsumerWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
-        ref.read(playerStateNotifierProvider.notifier).playTrack(track);
+        ref.read(currentPlaylistNotifierProvider.notifier).play(track.bvid, ref.read(playlistIdsNotifierProvider(playlistName)));
       },
       child: Padding(
         padding: const EdgeInsets.all(10),
@@ -222,8 +223,7 @@ class PlaylistPage extends ConsumerWidget {
                           final name = playlistNames.valueOrNull![index];
                           final isCollected = ref
                               .watch(playlistIdsNotifierProvider(name))
-                              .valueOrNull
-                              ?.contains(track!.bvid) ?? false;
+                              .contains(track!.bvid);
                           return Button(
                             onTap: () {
                               ref

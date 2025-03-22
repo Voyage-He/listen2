@@ -13,6 +13,6 @@ Future<void> globalReady(GlobalReadyRef ref) async {
     ref.watch(bilibiliClientNotifierProvider.future),
     ref.watch(audioHandlerProvider.future) // android player initization
   ]);
-  ref.watch(currentPlaylistNotifierProvider);
+  ref.read(currentPlaylistNotifierProvider.notifier);
   return;
 }

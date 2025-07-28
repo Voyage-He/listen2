@@ -4,6 +4,8 @@ import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:listen2/src/provider/global/player.dart';
 import 'package:listen2/src/ref_extensions.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:audio_service/audio_service.dart' as audio_service;
+import 'package:listen2/src/provider/repo/track.dart';
 
 part 'current_playlist.g.dart';
 
@@ -13,78 +15,128 @@ class CurrentPlaylistState {
   final int index;
   @HiveField(1)
   final List<String> playlist;
-  const CurrentPlaylistState({required this.index, required this.playlist});
+  const CurrentPlaylistState({this.index = 0, this.playlist = const []});
 
-  String get currentTrackId => playlist[index];
+  String get currentTrackId {
+    if (playlist.isEmpty) return "";
+    return playlist[index];
+  }
 
-  bool get hasNext => index < playlist.length - 1;
+  bool get hasNext {
+    return playlist.isNotEmpty && index < playlist.length - 1;
+  }
 
   CurrentPlaylistState playNext() {
     if (!hasNext) return this;
-    return CurrentPlaylistState(index: index + 1, playlist: playlist);
+    return copyWith(index: index + 1);
   }
 
   CurrentPlaylistState insertTrackId(String trackId) {
-    return CurrentPlaylistState(index: index, playlist: playlist..insert(index + 1, trackId));
+    if (playlist.isEmpty) {
+      return copyWith(playlist: [trackId]);
+    }
+    
+    final newPlaylist = List<String>.from(playlist);
+    newPlaylist.insert(index + 1, trackId);
+    return copyWith(playlist: newPlaylist);
+  }
+  
+  CurrentPlaylistState copyWith({
+    int? index,
+    List<String>? playlist,
+  }) {
+    return CurrentPlaylistState(
+      index: index ?? this.index,
+      playlist: playlist ?? this.playlist,
+    );
   }
 }
 
 @Riverpod(keepAlive: true)
 class CurrentPlaylistNotifier extends _$CurrentPlaylistNotifier {
-  bool initilized = false;
+  // 使用本地AudioHandler类型而不是audio_service.AudioHandler
+  late AudioHandler _audioHandler;
 
   @override
   CurrentPlaylistState build() {
-    final playerBackState = ref.watch(playerStateNotifierProvider.select((state) => state.state));
-    final currentPlaylistState = ref.storage.custom["current_playlist_state"]!.get('default', defaultValue: const CurrentPlaylistState(index: 0, playlist: []));
-    debugPrint("current play list provider build");
-    debugPrint('playerBackState: $playerBackState');
-    if (playerBackState == ap.PlayerState.completed) {
-      debugPrint('currentPlaylistState: ${currentPlaylistState.hasNext}');
-      if (currentPlaylistState.hasNext) {
-        final newState = currentPlaylistState.playNext();
-        ref.storage.custom["current_playlist_state"]!.put('default', newState);
-        return load();
-      } else {
-        return currentPlaylistState;
-      }
-    } else if (playerBackState == ap.PlayerState.playing) {
-      return currentPlaylistState;
+    // 获取AudioHandler实例并进行类型转换
+    _audioHandler = ref.watch(audioHandlerProvider).requireValue as AudioHandler;
+    
+    // 从AudioHandler获取播放列表状态
+    final playlistState = _audioHandler.getPlaylistState();
+    if (playlistState != null) {
+      return playlistState;
     }
-
-    if (initilized) return currentPlaylistState;
-    initilized = true;
-    return load();
-    // TODO fix: this load() cause play call twice when play next automatically
+    
+    return CurrentPlaylistState(index: 0, playlist: []);
   }
 
-  void play(String trackId, List<String> playlistTrackIds) {
-    final newPlaylist =
-        CurrentPlaylistState(index: playlistTrackIds.indexOf(trackId), playlist: playlistTrackIds);
-    ref.storage.custom["current_playlist_state"]!.put('default', newPlaylist);
-    load();
+  // 播放指定曲目和播放列表
+  Future<void> playTrack(Track track, List<String> playlist) async {
+    // 更新状态
+    final index = playlist.indexOf(track.bvid);
+    state = CurrentPlaylistState(
+      index: index >= 0 ? index : 0,
+      playlist: playlist,
+    );
+    
+    // 设置AudioHandler的播放列表
+    _audioHandler.setPlaylist(state.index, playlist);
+    
+    // 播放曲目
+    await ref.read(playerStateNotifierProvider.notifier).playTrack(track);
   }
 
-  void setNext(String trackId) {
-    ref.storage.custom["current_playlist_state"]!.put('default', state.insertTrackId(trackId));
-    load();
-  }
-
-  CurrentPlaylistState load() {
-    final currentPlaylistState = ref.storage.custom["current_playlist_state"]!.get(
-        'default',
-        defaultValue: const CurrentPlaylistState(index: 0, playlist: []));
-
-    if (currentPlaylistState.playlist.isEmpty) return currentPlaylistState;
-    if (currentPlaylistState.currentTrackId ==
-        ref.read(playerStateNotifierProvider.notifier).state.track?.bvid) {
-      return currentPlaylistState;
-    }
-
-    ref
+  // 通过ID播放指定曲目和播放列表
+  Future<void> playTrackById(String trackId, List<String> playlist) async {
+    // 更新状态
+    final index = playlist.indexOf(trackId);
+    state = CurrentPlaylistState(
+      index: index >= 0 ? index : 0,
+      playlist: playlist,
+    );
+    
+    // 使用AudioHandler设置播放列表
+    _audioHandler.setPlaylist(state.index, playlist);
+    
+    // 播放曲目
+    await ref
         .read(playerStateNotifierProvider.notifier)
-        .playTrackById(currentPlaylistState.currentTrackId);
-        debugPrint('load call time');
-    return currentPlaylistState;
+        .playTrackById(trackId);
+  }
+
+  // 设置下一首要播放的曲目
+  Future<void> setNext(String trackId) async {
+    // 获取新的播放列表状态
+    final newState = state.insertTrackId(trackId);
+    
+    // 更新状态
+    state = newState;
+    
+    // 更新AudioHandler的播放列表
+    _audioHandler.setPlaylist(newState.index, newState.playlist);
+  }
+
+  // 播放下一首曲目
+  Future<void> playNext() async {
+    if (!state.hasNext) return;
+    
+    // 获取下一首曲目状态
+    final newState = state.playNext();
+    state = newState;
+    
+    // 更新AudioHandler的播放列表
+    _audioHandler.setPlaylist(newState.index, newState.playlist);
+    
+    // 播放下一首曲目
+    await ref
+        .read(playerStateNotifierProvider.notifier)
+        .playTrackById(newState.currentTrackId);
+  }
+  
+  // 通过bvid播放指定曲目和播放列表
+  Future<void> play(String bvid, List<String> playlist) async {
+    // 与playTrackById方法相同，只是参数名不同
+    await playTrackById(bvid, playlist);
   }
 }

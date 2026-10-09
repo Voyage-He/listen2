@@ -26,27 +26,33 @@ class KeywordNotifier extends _$KeywordNotifier {
 
 @riverpod
 class SearchResult extends _$SearchResult {
+  int _request = 0;
+
   @override
   Future<List<Track>> build() async {
+    ref.onDispose(() => _request++);
     return [];
   }
 
-  Future search() async {
-    print('call search');
-    var client = ref.watch(bilibiliClientNotifierProvider).requireValue;
-    if (!client.hasCookie) return [];
-
-    var keyword = ref.read(keywordNotifierProvider);
-    print(keyword);
-    if (keyword.isEmpty) return [];
-
-    var res = await client.search(keyword);
-    var tracks = res
-        .map((bilibiliVideo) => Track(bilibiliVideo.bvid, bilibiliVideo.title,
-            bilibiliVideo.author, 'https:${bilibiliVideo.pic}'))
-        .toList();
-    print(tracks[0].bvid);
-    state = AsyncData(tracks);
+  Future<void> search() async {
+    final request = ++_request;
+    final keyword = ref.read(keywordNotifierProvider).trim();
+    if (keyword.isEmpty) {
+      state = const AsyncData([]);
+      return;
+    }
+    state = const AsyncLoading();
+    final result = await AsyncValue.guard(() async {
+      final client = await ref.read(bilibiliClientNotifierProvider.future);
+      if (!client.hasCookie) throw StateError('搜索服务尚未初始化');
+      final videos = await client.search(keyword);
+      return videos.map((video) {
+        final pictureUrl =
+            video.pic.startsWith('//') ? 'https:${video.pic}' : video.pic;
+        return Track(video.bvid, video.title, video.author, pictureUrl);
+      }).toList();
+    });
+    if (request == _request) state = result;
   }
 }
 
@@ -86,8 +92,11 @@ class Search extends ConsumerWidget {
                 return _searchItem(ref, tracks[i], isFavorites[i]);
               });
         },
-        error: (_, __) => const Text("err"),
-        loading: () => const Text("loading"));
+        error: (error, _) {
+          debugPrint('Search failed: $error');
+          return const Text('搜索失败，请稍后重试');
+        },
+        loading: () => const Text('搜索中…'));
   }
 
   Widget _searchItem(WidgetRef ref, Track track, bool isFavorite) {
@@ -123,7 +132,8 @@ class Search extends ConsumerWidget {
                   margin: const EdgeInsets.only(right: 20),
                   child: GestureDetector(
                       onTap: () => ref
-                          .read(playlistIdsNotifierProvider('favorite').notifier)
+                          .read(
+                              playlistIdsNotifierProvider('favorite').notifier)
                           .toggle(track.bvid),
                       child: isFavorite
                           ? const Icon(

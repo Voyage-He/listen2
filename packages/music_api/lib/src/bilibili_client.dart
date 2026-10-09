@@ -73,11 +73,16 @@ class BilibiliClient {
       'https://api.bilibili.com/x/web-interface/search/type',
       queryParameters: {'keyword': keyword, 'search_type': 'video'},
     );
-    assert(res.success);
-    // var bvid = res.json()['data']['result'][0]['bvid'] as String;
-    // print(bvid.split(RegExp(r'BV[\w+]'))[1]);
-
-    return BilibiliVideoModel.fromList(res.json()["data"]['result']);
+    if (!res.success) {
+      throw StateError('Bilibili search failed: HTTP ${res.statusCode}');
+    }
+    final body = res.json();
+    if (body['code'] != 0) {
+      throw StateError(
+          'Bilibili search failed: ${body['code']} ${body['message']}');
+    }
+    final results = body['data']['result'];
+    return BilibiliVideoModel.fromList(results ?? []);
   }
 
   Future<List<String>> getVideoInfo(String bvid) async {

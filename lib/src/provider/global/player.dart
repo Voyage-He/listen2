@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:audioplayers/audioplayers.dart' as ap;
-import 'package:flutter/widgets.dart';
-import 'package:listen2/src/provider/repo/track.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
+import 'package:listen2/src/provider/repo/track.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'player.g.dart';
 
@@ -30,110 +34,185 @@ class PlayerState {
   }
 }
 
-/// Add background ablility to [AudioPlayers.AudioPlayer].
+/// Connects the player to iOS Now Playing and Android media controls.
 class AudioHandler extends BaseAudioHandler {
   final player = ap.AudioPlayer();
+  final List<StreamSubscription<dynamic>> _subscriptions = [];
+  bool _resumeAfterInterruption = false;
+  bool _ducked = false;
 
-  AudioHandler() {
-    // AudioHandler need playing state to run in background
-    playbackState.add(PlaybackState(
-      playing: false,
+  Future<void> initialize() async {
+    await player.setAudioContext(const ap.AudioContext(
+      android:
+          ap.AudioContextAndroid(audioFocus: ap.AndroidAudioFocus.none),
+      iOS: ap.AudioContextIOS(category: ap.AVAudioSessionCategory.playback),
+    ));
+    // Configure after the player so plugin defaults cannot replace music mode.
+    final session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration.music());
+    _subscriptions.add(player.onPlayerStateChanged.listen((state) {
+      _publishState(state);
+    }));
+    _subscriptions.add(player.onPositionChanged.listen((position) {
+      playbackState.add(playbackState.value.copyWith(updatePosition: position));
+    }));
+    _subscriptions.add(player.onDurationChanged.listen((duration) {
+      final item = mediaItem.value;
+      if (item != null) mediaItem.add(item.copyWith(duration: duration));
+    }));
+    _subscriptions.add(session.becomingNoisyEventStream.listen((_) => pause()));
+    _subscriptions.add(session.interruptionEventStream.listen((event) async {
+      if (event.type == AudioInterruptionType.duck) {
+        if (event.begin && player.state == ap.PlayerState.playing) {
+          _ducked = true;
+          await player.setVolume(0.2);
+        } else if (!event.begin && _ducked) {
+          _ducked = false;
+          await player.setVolume(1);
+        }
+        return;
+      }
+      if (event.begin) {
+        final wasPlaying = player.state == ap.PlayerState.playing;
+        await pause();
+        _resumeAfterInterruption = wasPlaying;
+      } else {
+        final shouldResume = _resumeAfterInterruption &&
+            event.type == AudioInterruptionType.pause;
+        _resumeAfterInterruption = false;
+        if (shouldResume) await play();
+      }
+    }));
+    _publishState(player.state);
+  }
+
+  void _publishState(ap.PlayerState state) {
+    final playing = state == ap.PlayerState.playing;
+    playbackState.add(playbackState.value.copyWith(
+      controls: [
+        playing ? MediaControl.pause : MediaControl.play,
+        MediaControl.stop
+      ],
+      systemActions: const {MediaAction.seek},
+      androidCompactActionIndices: const [0],
+      playing: playing,
+      processingState: state == ap.PlayerState.completed
+          ? AudioProcessingState.completed
+          : state == ap.PlayerState.stopped || state == ap.PlayerState.disposed
+              ? AudioProcessingState.idle
+              : AudioProcessingState.ready,
     ));
   }
 
-  void dispose() {
-    debugPrint('info: audiohandler disposal');
-    player.dispose();
+  @override
+  Future<void> play() async {
+    if (player.source == null || player.state == ap.PlayerState.completed) {
+      return;
+    }
+    final session = await AudioSession.instance;
+    if (await session.setActive(true)) await player.resume();
+  }
+
+  @override
+  Future<void> pause() async {
+    _resumeAfterInterruption = false;
+    await player.pause();
+  }
+
+  @override
+  Future<void> seek(Duration position) async {
+    await player.seek(position);
+    playbackState.add(playbackState.value.copyWith(updatePosition: position));
+  }
+
+  @override
+  Future<void> stop() async {
+    _resumeAfterInterruption = false;
+    await player.stop();
+    final session = await AudioSession.instance;
+    await session.setActive(false);
+    await super.stop();
+  }
+
+  Future<void> dispose() async {
+    for (final subscription in _subscriptions) {
+      await subscription.cancel();
+    }
+    await player.dispose();
   }
 }
 
 @Riverpod(keepAlive: true)
 class PlayerStateNotifier extends _$PlayerStateNotifier {
   late AudioHandler _audioHandler;
-  late StreamSubscription _playerStateChangeSubscription;
-  late StreamSubscription _durationChangeSubscription;
-  late StreamSubscription _positionChangeSubscription;
-  late StreamSubscription _interruptionEventSubscription;
-  bool _isInterrupt = false;
+  int _playRequest = 0;
 
   @override
   PlayerState build() {
     _audioHandler = ref.watch(audioHandlerProvider).requireValue;
-
-    //
-    const audioFocusNone = ap.AudioContext(
-        android: ap.AudioContextAndroid(audioFocus: ap.AndroidAudioFocus.none));
-    _audioHandler.player.setAudioContext(audioFocusNone);
-
-    _playerStateChangeSubscription =
-        _audioHandler.player.onPlayerStateChanged.listen((e) async {
-      // ignore if state is same, audioplayer will emit same state
-      if (e == state.state) return;
-      debugPrint('listened_state$e');
-      state = state.copyWith(state: e);
-      if (e == ap.PlayerState.playing) {
-        _audioHandler.playbackState
-            .add(_audioHandler.playbackState.value.copyWith(playing: true));
-      } else {
-        _audioHandler.playbackState
-            .add(_audioHandler.playbackState.value.copyWith(playing: false));
+    final subscriptions = <StreamSubscription<dynamic>>[
+      _audioHandler.player.onPlayerStateChanged.listen((value) {
+        state = state.copyWith(state: value);
+      }),
+      _audioHandler.player.onDurationChanged.listen((value) {
+        state = state.copyWith(length: value);
+      }),
+      _audioHandler.player.onPositionChanged.listen((value) {
+        state = state.copyWith(now: value);
+      }),
+    ];
+    ref.onDispose(() {
+      _playRequest++;
+      for (final subscription in subscriptions) {
+        subscription.cancel();
       }
     });
-
-    _durationChangeSubscription =
-        _audioHandler.player.onDurationChanged.listen((e) async {
-      state = state.copyWith(length: e);
-    });
-
-    _positionChangeSubscription =
-        _audioHandler.player.onPositionChanged.listen((e) async {
-      state = state.copyWith(now: e);
-    });
-
-    AudioSession.instance.then((session) {
-      _interruptionEventSubscription =
-          session.interruptionEventStream.listen((event) async {
-        if (event.begin) {
-          if (state.state == ap.PlayerState.playing) {
-            await pause();
-            _isInterrupt = true;
-          }
-        } else {
-          if (!_isInterrupt) return;
-          await resume();
-          _isInterrupt = false;
-        }
-      });
-    });
-
-    ref.onDispose(() {
-      debugPrint('info: call player disposal');
-      _positionChangeSubscription.cancel();
-      _durationChangeSubscription.cancel();
-      _playerStateChangeSubscription.cancel();
-      _interruptionEventSubscription.cancel();
-      _audioHandler.dispose();
-    });
-
     return PlayerState();
   }
 
   Future<void> playTrack(Track track) async {
-    debugPrint('play_track${track.title}');
+    final request = ++_playRequest;
+    final bytes = await ref.read(trackBytesProvider(track).future);
+    if (request != _playRequest) return;
 
+    ap.Source source = ap.BytesSource(bytes);
+    if (Platform.isIOS) {
+      // AVPlayer needs a file with the actual container extension (Bilibili AAC).
+      final directory = await getTemporaryDirectory();
+      final name = base64Url.encode(utf8.encode(track.bvid));
+      final file = File(path.join(directory.path, 'listen2-$name.m4a'));
+      await file.writeAsBytes(bytes, flush: true);
+      source = ap.DeviceFileSource(file.path);
+    }
+    if (request != _playRequest) return;
     await _audioHandler.player.release();
-
     final session = await AudioSession.instance;
-    if (!(await session.setActive(true))) return;
+    if (!(await session.setActive(true)) || request != _playRequest) return;
 
-    var bytes = await ref.read(trackBytesProvider(track).future);
-    await _audioHandler.player.play(ap.BytesSource(bytes));
-
-    state = state.copyWith(track: track);
+    state = PlayerState(track: track);
+    _audioHandler.mediaItem.add(MediaItem(
+      id: track.bvid,
+      title: track.title,
+      artist: track.singer,
+      artUri: Uri.tryParse(track.pictureUrl),
+    ));
+    _audioHandler.playbackState.add(_audioHandler.playbackState.value.copyWith(
+      updatePosition: Duration.zero,
+      processingState: AudioProcessingState.loading,
+    ));
+    try {
+      await _audioHandler.player.play(source);
+    } catch (_) {
+      await _audioHandler.stop();
+      rethrow;
+    }
   }
 
   Future<void> playTrackById(String trackId) async {
     if (trackId.isEmpty) {
+      _playRequest++;
+      await _audioHandler.stop();
+      _audioHandler.mediaItem.add(null);
       state = PlayerState();
       return;
     }
@@ -141,35 +220,18 @@ class PlayerStateNotifier extends _$PlayerStateNotifier {
     await playTrack(track);
   }
 
-  Future<void> pause() async {
-    await _audioHandler.player.pause();
-  }
-
-  Future<void> resume() async {
-    if (state == ap.PlayerState.completed) return;
-
-    final session = await AudioSession.instance;
-    if (!(await session.setActive(true))) return;
-
-    await _audioHandler.player.resume();
-  }
-
-  Future<void> seek(Duration position) async {
-    print(position);
-    await _audioHandler.player.seek(position);
-  }
+  Future<void> pause() => _audioHandler.pause();
+  Future<void> resume() => _audioHandler.play();
+  Future<void> seek(Duration position) => _audioHandler.seek(position);
 }
 
 @Riverpod(keepAlive: true)
 Future<AudioHandler> audioHandler(AudioHandlerRef ref) async {
-  final session = await AudioSession.instance;
-  await session.configure(const AudioSessionConfiguration.music());
-  final audioHandler = AudioService.init(
+  final handler = await AudioService.init(
     builder: () => AudioHandler(),
-    config: const AudioServiceConfig(
-      androidStopForegroundOnPause: false,
-    ),
+    config: const AudioServiceConfig(androidStopForegroundOnPause: false),
   );
-
-  return audioHandler;
+  await handler.initialize();
+  ref.onDispose(() => handler.dispose());
+  return handler;
 }

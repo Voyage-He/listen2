@@ -70,7 +70,7 @@ class BilibiliClient {
 
   Future<List<BilibiliVideoModel>> search(String keyword) async {
     Response res = await Requests.get(
-      'http://api.bilibili.com/x/web-interface/search/type',
+      'https://api.bilibili.com/x/web-interface/search/type',
       queryParameters: {'keyword': keyword, 'search_type': 'video'},
     );
     assert(res.success);
@@ -96,7 +96,7 @@ class BilibiliClient {
   Future<String> getAudioUrl(String bvid, int cid) async {
     // TODO Choose audio clarity.
     Response res = await Requests.get(
-      'http://api.bilibili.com/x/player/playurl',
+      'https://api.bilibili.com/x/player/playurl',
       queryParameters: {'bvid': bvid, 'cid': cid, 'fnval': 16},
     );
     return res.json()['data']['dash']['audio'][0]['baseUrl'];
@@ -104,7 +104,7 @@ class BilibiliClient {
 
   Future<int> getCid(String bvid) async {
     Response res = await Requests.get(
-      'http://api.bilibili.com/x/player/pagelist',
+      'https://api.bilibili.com/x/player/pagelist',
       queryParameters: {
         'bvid': bvid,
       },

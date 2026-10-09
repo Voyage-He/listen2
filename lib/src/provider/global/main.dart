@@ -11,8 +11,8 @@ Future<void> globalReady(GlobalReadyRef ref) async {
   await Future.wait([
     ref.watch(hiveStorageProvider.future),
     ref.watch(bilibiliClientNotifierProvider.future),
-    ref.watch(audioHandlerProvider.future) // android player initization
+    ref.watch(audioHandlerProvider.future) // background audio initialization
   ]);
-  ref.listen(currentPlaylistNotifierProvider.notifier, (_, __){});
+  ref.listen(currentPlaylistNotifierProvider.notifier, (_, __) {});
   return;
 }

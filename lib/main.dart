@@ -1,8 +1,8 @@
+import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show Colors;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:listen2/src/provider/global/current_playlist.dart';
 import 'package:listen2/src/provider/global/main.dart';
 
 import 'package:listen2/src/view/page/home/home.page.dart';
@@ -30,33 +30,34 @@ void main() async {
         }
         return PageRouteBuilder(
             pageBuilder: (context, _, __) => Builder(builder: (context) {
-              final subNavigatorKey = GlobalKey<NavigatorState>();
+                  final subNavigatorKey = GlobalKey<NavigatorState>();
                   return Column(
                     children: [
                       Expanded(
                           child: PopScope(
-                            canPop: false,
-                            onPopInvokedWithResult: (didPop, result) async {
-                              if (subNavigatorKey.currentState!.canPop()) {
-                                subNavigatorKey.currentState!.pop();
-                                return;
-                              }
-                              if (Navigator.of(context).canPop()) {
-                                Navigator.of(context).pop();
-                              } else {
-                                SystemNavigator.pop();
-                              }
-                            },
-                            child: Navigator(
-                              key: subNavigatorKey,
-                              initialRoute: '/',
-                              onGenerateRoute: (settings) {
-                                return PageRouteBuilder(
-                                    pageBuilder: (context, _, __) =>
-                                        builder(context));
-                              },
-                            ),
-                          )),
+                        canPop: false,
+                        onPopInvokedWithResult: (didPop, result) async {
+                          if (didPop) return;
+                          if (subNavigatorKey.currentState!.canPop()) {
+                            subNavigatorKey.currentState!.pop();
+                            return;
+                          }
+                          if (Navigator.of(context).canPop()) {
+                            Navigator.of(context).pop();
+                          } else if (Platform.isAndroid) {
+                            SystemNavigator.pop();
+                          }
+                        },
+                        child: Navigator(
+                          key: subNavigatorKey,
+                          initialRoute: '/',
+                          onGenerateRoute: (settings) {
+                            return PageRouteBuilder(
+                                pageBuilder: (context, _, __) =>
+                                    builder(context));
+                          },
+                        ),
+                      )),
                       const BottomPlayer()
                     ],
                   );
@@ -79,7 +80,8 @@ class App extends ConsumerWidget {
 
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark));
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light));
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,

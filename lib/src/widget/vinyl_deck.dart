@@ -166,7 +166,7 @@ class _VinylDeckState extends State<VinylDeck>
         final width = constraints.maxWidth;
         final diameter = width * .77;
         final progress = widget.duration > Duration.zero
-            ? ((_target ?? widget.position).inMilliseconds /
+            ? ((_target ?? _pendingSeek ?? widget.position).inMilliseconds /
                     widget.duration.inMilliseconds)
                 .clamp(0.0, 1.0)
             : 0.0;
@@ -293,6 +293,7 @@ class _VinylDeckState extends State<VinylDeck>
                                             child: child),
                                     child: VinylRecord(
                                         playing: widget.playing &&
+                                            !widget.busy &&
                                             _start == null &&
                                             _pendingSeek == null,
                                         position: _target ??

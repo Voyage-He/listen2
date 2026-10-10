@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math' as math;
 
+import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +18,7 @@ import 'package:listen2/src/view/page/playlist/playlist.dart';
 import 'package:listen2/src/view/page/search/search.page.dart';
 import 'package:listen2/src/widget/app_style.dart';
 import 'package:listen2/src/widget/progress_bar.dart';
+import 'package:listen2/src/widget/vinyl_deck.dart';
 import 'package:listen2/main.dart' show ListenApp;
 import 'package:listen2/src/provider/global/main.dart';
 
@@ -59,6 +62,30 @@ class _SingleTrackPlayer extends player.PlayerStateNotifier {
   player.PlayerState build() => player.PlayerState(track: _singleTrack);
 }
 
+class _SeekingPlayer extends player.PlayerStateNotifier {
+  _SeekingPlayer(this.playbackState);
+  final ap.PlayerState playbackState;
+  final pending = Completer<void>();
+  Duration? target;
+
+  @override
+  player.PlayerState build() => player.PlayerState(
+      state: playbackState,
+      track: _singleTrack,
+      now: const Duration(seconds: 45),
+      length: const Duration(minutes: 3));
+
+  void updatePosition(Duration position) =>
+      state = state.copyWith(now: position);
+
+  @override
+  Future<void> seek(Duration position) async {
+    target = position;
+    await pending.future;
+    updatePosition(position);
+  }
+}
+
 class _SingleTrackQueue extends CurrentPlaylistNotifier {
   @override
   CurrentPlaylistState build() =>
@@ -99,6 +126,58 @@ class _SearchQueue extends CurrentPlaylistNotifier {
 }
 
 void main() {
+  for (final playbackState in [ap.PlayerState.playing, ap.PlayerState.paused]) {
+    testWidgets('tonearm stays stable while seeking in $playbackState',
+        (tester) async {
+      final playback = _SeekingPlayer(playbackState);
+      await tester.pumpWidget(ProviderScope(
+          overrides: [
+            player.playerStateNotifierProvider.overrideWith(() => playback),
+            playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
+            trackCoverProvider(_singleTrack)
+                .overrideWith((ref) async => throw StateError('no cover')),
+          ],
+          child: MaterialApp(
+              theme: AppStyle.theme, home: const Scaffold(body: Player()))));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      CustomPainter armPainter() => tester
+          .widget<CustomPaint>(find.descendant(
+              of: find.byKey(const ValueKey('tonearm')),
+              matching: find.byType(CustomPaint)))
+          .painter!;
+      final rect = tester.getRect(find.byKey(const ValueKey('vinyl-record')));
+      final radius = rect.width * .43;
+      final gesture =
+          await tester.startGesture(rect.center + Offset(0, -radius));
+      for (var i = 1; i <= 12; i++) {
+        final angle = -math.pi / 2 + math.pi / 2 * i / 12;
+        await gesture.moveTo(
+            rect.center + Offset(math.cos(angle), math.sin(angle)) * radius);
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      final preview = armPainter();
+      await gesture.up();
+      await tester.pump();
+      expect(playback.target!.inMilliseconds, closeTo(60000, 1500));
+      expect(tester.widget<VinylDeck>(find.byType(VinylDeck)).busy, isTrue);
+      expect(tester.widget<VinylDeck>(find.byType(VinylDeck)).playing,
+          playbackState == ap.PlayerState.playing);
+      expect(armPainter().shouldRepaint(preview), isFalse,
+          reason: 'Releasing a scrub must keep the needle at the preview');
+      playback.updatePosition(const Duration(seconds: 46));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(armPainter().shouldRepaint(preview), isFalse,
+          reason: 'Old position ticks must not move the needle during a seek');
+      playback.pending.complete();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(tester.widget<VinylDeck>(find.byType(VinylDeck)).busy, isFalse);
+      expect(armPainter().shouldRepaint(preview), isFalse);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('record shelf scrolls through lazily loaded tracks',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);

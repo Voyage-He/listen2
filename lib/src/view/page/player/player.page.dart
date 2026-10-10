@@ -337,7 +337,7 @@ class _PlayerState extends ConsumerState<Player> {
                           ]),
                           const SizedBox(height: 22),
                           VinylDeck(
-                              playing: playing && !_busy,
+                              playing: playing,
                               position: state.now,
                               duration: state.length,
                               enabled: track != null,

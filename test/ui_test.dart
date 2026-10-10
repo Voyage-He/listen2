@@ -369,7 +369,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byTooltip('设置'), findsNothing);
     final heading = find.text('LISTEN 2');
-    await tester.drag(heading, const Offset(120, 0));
+    await tester.drag(heading, const Offset(40, 0));
     await tester.pumpAndSettle();
     expect(find.text('音乐与备份'), findsNothing);
     await tester.drag(heading, const Offset(-40, 0));
@@ -380,6 +380,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('音乐与备份'), findsNothing);
     await tester.drag(heading, const Offset(-120, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('音乐与备份'), findsOneWidget);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Player), findsOneWidget);
+    await tester.ensureVisible(find.text('让音乐，慢慢转起来'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.text('让音乐，慢慢转起来'), const Offset(120, 0));
     await tester.pumpAndSettle();
     expect(find.text('音乐与备份'), findsOneWidget);
     await tester.tap(find.byTooltip('返回'));

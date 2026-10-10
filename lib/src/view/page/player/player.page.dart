@@ -215,7 +215,7 @@ class _PlayerState extends ConsumerState<Player> {
             : null,
         onHorizontalDragEnd: widget.isHome
             ? (_) {
-                if (_settingsSwipeDistance <= -72) {
+                if (_settingsSwipeDistance.abs() >= 72) {
                   Navigator.of(context)
                       .push(MaterialPageRoute(builder: (_) => const Option()));
                 }
@@ -293,7 +293,8 @@ class _PlayerState extends ConsumerState<Player> {
                                                       height: 1.8,
                                                       color: vinylInk)),
                                               SizedBox(height: 16),
-                                              Text('04   在首页唱片外的区域向左滑动，进入设置。',
+                                              Text(
+                                                  '04   在首页唱片外的区域向左或向右滑动，进入设置。',
                                                   style: TextStyle(
                                                       height: 1.8,
                                                       color: vinylInk)),

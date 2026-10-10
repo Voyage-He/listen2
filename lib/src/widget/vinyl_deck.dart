@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
@@ -555,24 +556,42 @@ class _ScrubTimeBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
       key: const ValueKey('vinyl-scrub-time'),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-          color: vinylCream.withOpacity(.96),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: vinylGold.withOpacity(.6)),
-          boxShadow: const [
+      decoration: const BoxDecoration(
+          borderRadius: BorderRadius.all(Radius.circular(100)),
+          boxShadow: [
             BoxShadow(
-                color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 3))
+                color: Color(0x33000000), blurRadius: 14, offset: Offset(0, 4))
           ]),
-      child: Text(
-          '${position.inMinutes}:${(position.inSeconds % 60).toString().padLeft(2, '0')}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-              color: vinylInk,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              fontFeatures: [FontFeature.tabularFigures()])));
+      child: ClipRRect(
+          borderRadius: BorderRadius.circular(100),
+          child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: ColoredBox(
+                  color: const Color(0x40201E1A),
+                  child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(100),
+                          gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0x4DFFFFFF),
+                                Color(0x14322E28),
+                                Color(0x33FFFFFF)
+                              ],
+                              stops: [
+                                0,
+                                .55,
+                                1
+                              ]),
+                          border: Border.all(
+                              color: const Color(0x99FFFFFF), width: .8)),
+                      child: Text('${position.inMinutes}:${(position.inSeconds % 60).toString().padLeft(2, '0')}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: vinylCream, fontSize: 13, fontWeight: FontWeight.w600, fontFeatures: [FontFeature.tabularFigures()], shadows: [Shadow(color: Color(0x66000000), blurRadius: 2, offset: Offset(0, 1))])))))));
 }
 
 class _ScrubTimeLayout extends SingleChildLayoutDelegate {

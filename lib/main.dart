@@ -1,71 +1,26 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:listen2/src/widget/app_style.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/global/main.dart';
 
-import 'package:listen2/src/view/page/home/home.page.dart';
-import 'package:listen2/src/widget/bottom_player.dart';
+import 'package:listen2/src/view/page/player/player.page.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  runApp(const ProviderScope(child: ListenApp()));
+}
 
-  runApp(ProviderScope(
-    child: MaterialApp(
-      theme: AppStyle.theme,
-      title: "listen2 music player",
-
-      debugShowCheckedModeBanner: false,
-      // home: const Home(),
-      initialRoute: '/',
-      onGenerateRoute: (RouteSettings settings) {
-        WidgetBuilder builder;
-        switch (settings.name) {
-          case '/':
-            builder = (context) => const Home();
-            break;
-          default:
-            throw Exception('Invalid route: ${settings.name}');
-        }
-        return PageRouteBuilder(
-            pageBuilder: (context, _, __) => Builder(builder: (context) {
-                  final subNavigatorKey = GlobalKey<NavigatorState>();
-                  return Column(
-                    children: [
-                      Expanded(
-                          child: PopScope(
-                        canPop: false,
-                        onPopInvokedWithResult: (didPop, result) async {
-                          if (didPop) return;
-                          if (subNavigatorKey.currentState!.canPop()) {
-                            subNavigatorKey.currentState!.pop();
-                            return;
-                          }
-                          if (Navigator.of(context).canPop()) {
-                            Navigator.of(context).pop();
-                          } else if (Platform.isAndroid) {
-                            SystemNavigator.pop();
-                          }
-                        },
-                        child: Navigator(
-                          key: subNavigatorKey,
-                          initialRoute: '/',
-                          onGenerateRoute: (settings) {
-                            return PageRouteBuilder(
-                                pageBuilder: (context, _, __) =>
-                                    builder(context));
-                          },
-                        ),
-                      )),
-                      const BottomPlayer()
-                    ],
-                  );
-                }));
-      },
-      builder: (context, child) => App(child: child!),
-    ),
-  ));
+class ListenApp extends StatelessWidget {
+  const ListenApp({super.key});
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+        theme: AppStyle.theme,
+        title: 'Listen 2',
+        debugShowCheckedModeBanner: false,
+        home: const Player(isHome: true),
+        builder: (context, child) => App(child: child!),
+      );
 }
 
 class App extends ConsumerWidget {

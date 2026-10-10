@@ -6,6 +6,7 @@ import 'package:listen2/src/widget/vinyl_deck.dart';
 void main() {
   Future<void> pumpDeck(WidgetTester tester,
       {bool enabled = true,
+      VoidCallback? longPress,
       Duration length = const Duration(minutes: 3),
       Future<void> Function(bool)? arm,
       Future<void> Function(Duration)? seek,
@@ -18,6 +19,7 @@ void main() {
       child: VinylDeck(
           playing: false,
           enabled: enabled,
+          onLabelLongPress: longPress,
           position: const Duration(seconds: 45),
           duration: length,
           cover: const ColoredBox(color: vinylGold),
@@ -59,6 +61,28 @@ void main() {
     expect(angle().abs(), closeTo(math.pi, .001));
     await show(Duration.zero, false);
     expect(angle(), closeTo(0, .001));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'center long press opens library without a record and moving cancels it',
+      (tester) async {
+    var opened = 0;
+    final skips = <int>[];
+    await pumpDeck(tester, enabled: false, longPress: () => opened++);
+    await tester.longPress(find.byKey(const ValueKey('vinyl-record')));
+    await tester.pumpAndSettle();
+    expect(opened, 1);
+    await pumpDeck(tester,
+        longPress: () => opened++, skip: (value) async => skips.add(value));
+    final center = tester.getCenter(find.byKey(const ValueKey('vinyl-record')));
+    final pointer = await tester.startGesture(center);
+    await pointer.moveBy(const Offset(-90, 0));
+    await tester.pump(const Duration(milliseconds: 600));
+    await pointer.up();
+    await tester.pumpAndSettle();
+    expect(opened, 1);
+    expect(skips, [1]);
     expect(tester.takeException(), isNull);
   });
 

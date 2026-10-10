@@ -11,6 +11,8 @@ import 'package:listen2/src/view/page/player/player.page.dart';
 import 'package:listen2/src/view/page/playlist/playlist.dart';
 import 'package:listen2/src/widget/app_style.dart';
 import 'package:listen2/src/widget/progress_bar.dart';
+import 'package:listen2/main.dart' show ListenApp;
+import 'package:listen2/src/provider/global/main.dart';
 
 class _Names extends PlaylistNames {
   @override
@@ -55,6 +57,36 @@ void main() {
     ], child: MaterialApp(theme: AppStyle.theme, home: Scaffold(body: page))));
     await tester.pumpAndSettle();
   }
+
+  testWidgets('app starts at turntable and center long press opens playlists',
+      (tester) async {
+    await tester.pumpWidget(ProviderScope(overrides: [
+      globalReadyProvider.overrideWith((ref) async {}),
+      player.playerStateNotifierProvider.overrideWith(_Player.new),
+      playlistNamesProvider.overrideWith(_Names.new),
+      playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
+      playlistIdsNotifierProvider('一个很长很长的歌单名称，用来验证小屏幕布局')
+          .overrideWith(_Ids.new),
+    ], child: const ListenApp()));
+    await tester.pumpAndSettle();
+    expect(find.byType(Player), findsOneWidget);
+    expect(find.byTooltip('设置'), findsOneWidget);
+    expect(find.byTooltip('返回'), findsNothing);
+    await tester.longPress(find.byKey(const ValueKey('vinyl-record')));
+    await tester.pumpAndSettle();
+    expect(find.text('我喜欢的'), findsOneWidget);
+    expect(find.text('一个很长很长的歌单名称，用来验证小屏幕布局'), findsOneWidget);
+    await tester.tap(find.text('我喜欢的'));
+    await tester.pumpAndSettle();
+    expect(find.text('歌单还是空的'), findsOneWidget);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('设置'), findsOneWidget);
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    expect(find.text('音乐与备份'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('home opens search and returns on a narrow screen',
       (tester) async {

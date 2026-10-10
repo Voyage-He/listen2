@@ -9,9 +9,13 @@ import 'package:listen2/src/provider/repo/track.dart';
 import 'package:listen2/src/view/page/search/search.page.dart';
 import 'package:listen2/src/widget/track_cover.widget.dart';
 import 'package:listen2/src/widget/vinyl_deck.dart';
+import 'package:listen2/src/widget/playlist_picker.dart';
+import 'package:listen2/src/view/page/playlist/playlist.dart';
+import 'package:listen2/src/view/page/option/option.page.dart';
 
 class Player extends ConsumerStatefulWidget {
-  const Player({super.key});
+  const Player({super.key, this.isHome = false});
+  final bool isHome;
   @override
   ConsumerState<Player> createState() => _PlayerState();
 }
@@ -93,6 +97,22 @@ class _PlayerState extends ConsumerState<Player> {
     await _run(() => ref.read(currentPlaylistNotifierProvider.notifier).play(
         queue[next], queue,
         autoplay: playback.state == ap.PlayerState.playing));
+  }
+
+  Future<void> _showPlaylists() async {
+    final name = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: vinylCream,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => SizedBox(
+          height: MediaQuery.of(context).size.height * .65,
+          child: const PlaylistPicker()),
+    );
+    if (!mounted || name == null) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) =>
+            PlaylistPage(playlistName: name, returnToPlayerOnPlay: true)));
   }
 
   void _showQueue() {
@@ -181,9 +201,19 @@ class _PlayerState extends ConsumerState<Player> {
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
               child: Row(children: [
                 IconButton(
-                    tooltip: '返回',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                    tooltip: widget.isHome ? '设置' : '返回',
+                    onPressed: () {
+                      if (widget.isHome) {
+                        Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const Option()));
+                      } else {
+                        Navigator.of(context).pop();
+                      }
+                    },
+                    icon: Icon(
+                        widget.isHome
+                            ? Icons.tune_rounded
+                            : Icons.keyboard_arrow_down_rounded,
                         color: vinylInk)),
                 const Expanded(
                     child: Column(children: [
@@ -288,6 +318,7 @@ class _PlayerState extends ConsumerState<Player> {
                               fit: BoxFit.cover),
                           onArmChanged: _moveArm,
                           onSkip: _skip,
+                          onLabelLongPress: _showPlaylists,
                           onSeek: (value) => _run(() => ref
                               .read(playerStateNotifierProvider.notifier)
                               .seek(value)),

@@ -61,7 +61,11 @@ class PlaylistPage extends ConsumerWidget {
   final _playlistSettingPopupKey = GlobalKey<PopupState>();
   final _addPlaylistPopupKey = GlobalKey<PopupState>();
 
-  PlaylistPage({super.key, required this.playlistName});
+  PlaylistPage(
+      {super.key,
+      required this.playlistName,
+      this.returnToPlayerOnPlay = false});
+  final bool returnToPlayerOnPlay;
   final String playlistName;
 
   @override
@@ -155,8 +159,21 @@ class PlaylistPage extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => ref.read(currentPlaylistNotifierProvider.notifier).play(
-              track.bvid, ref.read(playlistIdsNotifierProvider(playlistName))),
+          onTap: () async {
+            try {
+              await ref.read(currentPlaylistNotifierProvider.notifier).play(
+                  track.bvid,
+                  ref.read(playlistIdsNotifierProvider(playlistName)));
+              if (returnToPlayerOnPlay && context.mounted) {
+                Navigator.of(context).pop();
+              }
+            } catch (_) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('暂时无法播放，请稍后重试')));
+              }
+            }
+          },
           child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
               child: Row(children: [

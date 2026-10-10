@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -20,10 +21,12 @@ class VinylDeck extends StatefulWidget {
       this.enabled = true,
       this.busy = false,
       this.unavailableDirection,
+      this.onLabelLongPress,
       required this.onArmChanged,
       required this.onSeek,
       required this.onSkip,
       this.onScrubChanged});
+  final VoidCallback? onLabelLongPress;
   final bool playing;
   final bool enabled;
   final bool busy;
@@ -47,11 +50,15 @@ class _VinylDeckState extends State<VinylDeck>
 
   @override
   void dispose() {
+    _longPressTimer?.cancel();
     _translation.dispose();
     super.dispose();
   }
 
   int? _recordPointer;
+  Timer? _longPressTimer;
+  Offset? _pressOrigin;
+  bool _longPressed = false;
   double _sweep = 0;
   double _lastAngle = 0;
   Offset? _start;
@@ -191,21 +198,21 @@ class _VinylDeckState extends State<VinylDeck>
                       height: diameter,
                       child: Semantics(
                           label: '唱片，外圈旋转调整播放位置，中心左右拨动换曲',
+                          onLongPress:
+                              widget.busy ? null : widget.onLabelLongPress,
                           value: '${(_target ?? widget.position).inSeconds} 秒',
                           increasedValue:
                               '${(widget.position.inSeconds + 10).clamp(0, widget.duration.inSeconds)} 秒',
                           decreasedValue:
                               '${(widget.position.inSeconds - 10).clamp(0, widget.duration.inSeconds)} 秒',
-                          onIncrease: _available &&
-                                  widget.duration > Duration.zero
+                          onIncrease: _available && widget.duration > Duration.zero
                               ? () => widget.onSeek(Duration(
-                                  milliseconds: (widget.position.inMilliseconds +
-                                          10000)
-                                      .clamp(
-                                          0, widget.duration.inMilliseconds)))
+                                  milliseconds:
+                                      (widget.position.inMilliseconds + 10000)
+                                          .clamp(0,
+                                              widget.duration.inMilliseconds)))
                               : null,
-                          onDecrease: _available &&
-                                  widget.duration > Duration.zero
+                          onDecrease: _available && widget.duration > Duration.zero
                               ? () => widget.onSeek(Duration(
                                   milliseconds: (widget.position.inMilliseconds -
                                           10000)
@@ -214,7 +221,7 @@ class _VinylDeckState extends State<VinylDeck>
                           child: RawGestureDetector(
                               // Own the gesture from pointer-down, before the
                               // enclosing page's vertical scroll recognizer.
-                              gestures: _available
+                              gestures: (_available || (!widget.busy && widget.onLabelLongPress != null))
                                   ? {
                                       EagerGestureRecognizer:
                                           GestureRecognizerFactoryWithHandlers<
@@ -228,25 +235,53 @@ class _VinylDeckState extends State<VinylDeck>
                                 key: const ValueKey('vinyl-record'),
                                 behavior: HitTestBehavior.opaque,
                                 onPointerDown: (event) {
-                                  if (!_available || _recordPointer != null) {
+                                  if (widget.busy || _recordPointer != null) {
                                     return;
                                   }
                                   _recordPointer = event.pointer;
+                                  _pressOrigin = event.localPosition;
+                                  _longPressed = false;
                                   _startRecord(event.localPosition, diameter);
+                                  final distance = (event.localPosition -
+                                          Offset(diameter / 2, diameter / 2))
+                                      .distance;
+                                  if (distance <= diameter * .175 &&
+                                      widget.onLabelLongPress != null) {
+                                    _longPressTimer =
+                                        Timer(kLongPressTimeout, () {
+                                      if (!mounted ||
+                                          _recordPointer == null ||
+                                          widget.busy) return;
+                                      _longPressed = true;
+                                      _cancelRecord();
+                                      HapticFeedback.selectionClick();
+                                      widget.onLabelLongPress?.call();
+                                    });
+                                  }
                                 },
                                 onPointerMove: (event) {
-                                  if (event.pointer == _recordPointer) {
-                                    _moveRecord(event.localPosition, diameter);
+                                  if (event.pointer != _recordPointer ||
+                                      _longPressed) return;
+                                  if (_pressOrigin != null &&
+                                      (event.localPosition - _pressOrigin!)
+                                              .distance >
+                                          kTouchSlop) {
+                                    _longPressTimer?.cancel();
                                   }
+                                  _moveRecord(event.localPosition, diameter);
                                 },
                                 onPointerUp: (event) {
                                   if (event.pointer != _recordPointer) return;
+                                  _longPressTimer?.cancel();
                                   _recordPointer = null;
-                                  _endRecord();
+                                  _pressOrigin = null;
+                                  if (!_longPressed) _endRecord();
                                 },
                                 onPointerCancel: (event) {
                                   if (event.pointer != _recordPointer) return;
+                                  _longPressTimer?.cancel();
                                   _recordPointer = null;
+                                  _pressOrigin = null;
                                   _cancelRecord();
                                 },
                                 child: AnimatedBuilder(

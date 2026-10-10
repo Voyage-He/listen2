@@ -32,6 +32,15 @@ class AppStyle {
       );
 }
 
+class PageSurface extends StatelessWidget {
+  const PageSurface({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) =>
+      Material(color: AppStyle.background, child: SafeArea(child: child));
+}
+
 class PageHeading extends StatelessWidget {
   const PageHeading(this.title, {super.key, this.action});
   final String title;

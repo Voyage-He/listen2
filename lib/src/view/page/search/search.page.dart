@@ -74,59 +74,57 @@ class Search extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final keyword = ref.watch(keywordNotifierProvider);
     final results = ref.watch(searchResultProvider);
-    return Material(
-        color: AppStyle.background,
+    return PageSurface(
         child: Column(children: [
-          const PageHeading('发现音乐'),
-          Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-              child: Row(children: [
-                Expanded(
-                    child: Input(
-                        hintText: '搜索歌曲、歌手或视频',
-                        initialValue: keyword,
-                        textInputAction: TextInputAction.search,
-                        onChange: (text) => ref
-                            .read(keywordNotifierProvider.notifier)
-                            .update(text),
-                        onDone: () =>
-                            ref.read(searchResultProvider.notifier).search())),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                    tooltip: '搜索',
-                    onPressed: () {
-                      FocusManager.instance.primaryFocus?.unfocus();
-                      ref.read(searchResultProvider.notifier).search();
-                    },
-                    icon: const Icon(Icons.search_rounded)),
-              ])),
-          Expanded(
-              child: results.when(
-            skipLoadingOnRefresh: false,
-            data: (tracks) => tracks.isEmpty
-                ? EmptyState(
-                    icon: Icons.headphones_rounded,
-                    title: keyword.trim().isEmpty ? '下一首心动，从这里开始' : '暂时没有搜索结果',
-                    message: keyword.trim().isEmpty
-                        ? '搜索喜欢的歌曲或歌手，发现更多好音乐'
-                        : '试试其他歌曲名称或关键词')
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                    itemCount: tracks.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) =>
-                        _searchItem(context, ref, tracks[index], tracks)),
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, __) => EmptyState(
-                icon: Icons.wifi_off_rounded,
-                title: '搜索失败',
-                message: '请检查网络连接后重试',
-                action: FilledButton.tonal(
-                    onPressed: () =>
-                        ref.read(searchResultProvider.notifier).search(),
-                    child: const Text('重新搜索'))),
-          )),
-        ]));
+      const PageHeading('发现音乐'),
+      Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          child: Row(children: [
+            Expanded(
+                child: Input(
+                    hintText: '搜索歌曲、歌手或视频',
+                    initialValue: keyword,
+                    textInputAction: TextInputAction.search,
+                    onChange: (text) =>
+                        ref.read(keywordNotifierProvider.notifier).update(text),
+                    onDone: () =>
+                        ref.read(searchResultProvider.notifier).search())),
+            const SizedBox(width: 8),
+            IconButton.filled(
+                tooltip: '搜索',
+                onPressed: () {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  ref.read(searchResultProvider.notifier).search();
+                },
+                icon: const Icon(Icons.search_rounded)),
+          ])),
+      Expanded(
+          child: results.when(
+        skipLoadingOnRefresh: false,
+        data: (tracks) => tracks.isEmpty
+            ? EmptyState(
+                icon: Icons.headphones_rounded,
+                title: keyword.trim().isEmpty ? '下一首心动，从这里开始' : '暂时没有搜索结果',
+                message: keyword.trim().isEmpty
+                    ? '搜索喜欢的歌曲或歌手，发现更多好音乐'
+                    : '试试其他歌曲名称或关键词')
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                itemCount: tracks.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) =>
+                    _searchItem(context, ref, tracks[index], tracks)),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => EmptyState(
+            icon: Icons.wifi_off_rounded,
+            title: '搜索失败',
+            message: '请检查网络连接后重试',
+            action: FilledButton.tonal(
+                onPressed: () =>
+                    ref.read(searchResultProvider.notifier).search(),
+                child: const Text('重新搜索'))),
+      )),
+    ]));
   }
 
   Widget _searchItem(

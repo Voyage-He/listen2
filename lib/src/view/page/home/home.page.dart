@@ -14,7 +14,8 @@ class Home extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final playlists = ref.watch(playlistNamesProvider);
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    final main =
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(24, 24, 16, 20),
         child: Row(children: [
@@ -92,6 +93,7 @@ class Home extends ConsumerWidget {
                 child: const Text('重试'))),
       )),
     ]);
+    return PageSurface(child: main);
   }
 }
 

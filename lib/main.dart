@@ -33,16 +33,22 @@ class App extends ConsumerWidget {
     // global initialize and config settings
     final isReady = ref.watch(globalReadyProvider);
 
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.dark,
-        statusBarBrightness: Brightness.light));
+        statusBarBrightness: Brightness.light,
+        systemStatusBarContrastEnforced: false,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+        systemNavigationBarIconBrightness: Brightness.dark,
+        systemNavigationBarContrastEnforced: false));
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
     ]);
 
-    const splash = Center(child: CircularProgressIndicator());
+    const splash = SafeArea(child: Center(child: CircularProgressIndicator()));
 
     var w = isReady.when(
       data: (data) => child,
@@ -50,13 +56,14 @@ class App extends ConsumerWidget {
       error: (obj, stackTrace) {
         debugPrint(obj.toString());
         debugPrint(stackTrace.toString());
-        return EmptyState(
-            icon: Icons.wifi_off_rounded,
-            title: '初始化失败',
-            message: '请检查网络后重试',
-            action: FilledButton(
-                onPressed: () => ref.invalidate(globalReadyProvider),
-                child: const Text('重试')));
+        return SafeArea(
+            child: EmptyState(
+                icon: Icons.wifi_off_rounded,
+                title: '初始化失败',
+                message: '请检查网络后重试',
+                action: FilledButton(
+                    onPressed: () => ref.invalidate(globalReadyProvider),
+                    child: const Text('重试'))));
       },
     );
 
@@ -65,9 +72,7 @@ class App extends ConsumerWidget {
           onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
           onVerticalDragStart: (_) =>
               FocusManager.instance.primaryFocus?.unfocus(),
-          child: SafeArea(
-            child: Material(color: AppStyle.background, child: w),
-          )),
+          child: Material(color: AppStyle.background, child: w)),
     );
   }
 }

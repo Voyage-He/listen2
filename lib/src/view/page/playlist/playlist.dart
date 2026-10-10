@@ -144,8 +144,9 @@ class PlaylistPage extends ConsumerWidget {
     ]);
 
     final track = ref.watch(popupTrackProvider);
-    return Stack(children: [
-      Material(color: AppStyle.background, child: main),
+    return PageSurface(
+        child: Stack(children: [
+      main,
       Popup(
         track == null
             ? Container()
@@ -180,7 +181,7 @@ class PlaylistPage extends ConsumerWidget {
       ),
       _playlistSettingPopup(ref, track),
       _addPlaylistPopup(ref, track),
-    ]);
+    ]));
   }
 
   Widget _trackItem(

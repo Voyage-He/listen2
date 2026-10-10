@@ -512,7 +512,7 @@ class _PlayerSurface extends StatelessWidget {
             child: IgnorePointer(
                 child: ExcludeSemantics(
                     child: RepaintBoundary(child: _PlayerBackground())))),
-        child,
+        SafeArea(child: child),
       ]));
 }
 

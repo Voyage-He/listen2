@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:audioplayers/audioplayers.dart' as ap;
@@ -143,6 +144,39 @@ class _SearchQueue extends CurrentPlaylistNotifier {
 }
 
 void main() {
+  testWidgets('background fills system bar areas while controls stay safe',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    tester.view.padding = const FakeViewPadding(top: 59, bottom: 34);
+    tester.view.viewPadding = const FakeViewPadding(top: 59, bottom: 34);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(ProviderScope(overrides: [
+      globalReadyProvider.overrideWith((ref) async {}),
+      player.playerStateNotifierProvider.overrideWith(_SingleTrackPlayer.new),
+      playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
+      trackCoverProvider(_singleTrack).overrideWith((ref) async =>
+          base64Decode('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==')),
+    ], child: const ListenApp()));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.byType(Player)),
+        const Rect.fromLTWH(0, 0, 390, 844));
+    expect(tester.getRect(find.byType(ImageFiltered)),
+        const Rect.fromLTWH(0, 0, 390, 844));
+    expect(tester.getRect(find.text('LISTEN 2')).top, greaterThanOrEqualTo(59));
+    expect(tester.getRect(find.byType(SingleChildScrollView)).bottom,
+        lessThanOrEqualTo(810));
+
+    await tester.drag(find.text('LISTEN 2'), const Offset(-120, 0));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.byType(PageSurface)),
+        const Rect.fromLTWH(0, 0, 390, 844));
+    expect(tester.getRect(find.byTooltip('返回')).top, greaterThanOrEqualTo(59));
+    expect(
+        tester.getRect(find.byType(ListView)).bottom, lessThanOrEqualTo(810));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('label swipe down saves to local playlists and favorites',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);

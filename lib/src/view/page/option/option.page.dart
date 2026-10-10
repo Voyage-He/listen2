@@ -63,9 +63,8 @@ class _OptionState extends ConsumerState<Option> {
   }
 
   @override
-  Widget build(BuildContext context) => Material(
-      color: AppStyle.background,
-      child: Column(
+  Widget build(BuildContext context) => PageSurface(
+          child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const PageHeading('设置'),

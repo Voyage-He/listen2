@@ -541,9 +541,9 @@ class _PlayerBackground extends ConsumerWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-            Color(0xA6F1EFE7),
-            Color(0xBDF1EFE7),
-            Color(0xDEF1EFE7),
+            Color(0x59F1EFE7),
+            Color(0x73F1EFE7),
+            Color(0x99F1EFE7),
           ]))),
     ]));
   }

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:listen2/src/provider/global/player.dart' as player;
 import 'package:listen2/src/provider/repo/playlist_names.dart';
+import 'package:listen2/src/provider/repo/bilibili_playlists.dart';
 import 'package:listen2/src/provider/repo/track.dart';
 import 'package:listen2/src/provider/global/current_playlist.dart';
 import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
@@ -23,6 +26,22 @@ class _Names extends PlaylistNames {
 class _Ids extends PlaylistIdsNotifier {
   @override
   List<String> build(String playlistName) => [];
+}
+
+class _Sources extends BilibiliPlaylists {
+  @override
+  Map<String, String> build() => {};
+}
+
+class _ImportSources extends _Sources {
+  final attempts = <List<String>>[];
+  Completer<void>? pending;
+
+  @override
+  Future<void> add(String name, String mediaId) async {
+    attempts.add([name, mediaId]);
+    if (pending != null) await pending!.future;
+  }
 }
 
 class _Player extends player.PlayerStateNotifier {
@@ -69,6 +88,67 @@ class _SearchQueue extends CurrentPlaylistNotifier {
 }
 
 void main() {
+  testWidgets('playlist plus validates inputs and retries failed imports',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final sources = _ImportSources();
+    await tester.pumpWidget(ProviderScope(overrides: [
+      globalReadyProvider.overrideWith((ref) async {}),
+      bilibiliPlaylistsProvider.overrideWith(() => sources),
+      player.playerStateNotifierProvider.overrideWith(_Player.new),
+      playlistNamesProvider.overrideWith(_Names.new),
+      playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
+      playlistIdsNotifierProvider('一个很长很长的歌单名称，用来验证小屏幕布局')
+          .overrideWith(_Ids.new),
+      playlistIdsNotifierProvider('收藏音乐').overrideWith(_Ids.new),
+    ], child: const ListenApp()));
+    await tester.pumpAndSettle();
+    await tester.longPress(find.byKey(const ValueKey('vinyl-record')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('添加歌单'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('添加'));
+    await tester.pumpAndSettle();
+    expect(find.text('请输入有效的收藏夹 ID'), findsOneWidget);
+    expect(find.text('请输入歌单名称'), findsOneWidget);
+    expect(sources.attempts, isEmpty);
+
+    await tester.enterText(find.byType(TextFormField).at(0), '12345');
+    await tester.enterText(find.byType(TextFormField).at(1), '收藏音乐');
+    sources.pending = Completer<void>();
+    await tester.tap(find.text('添加'));
+    await tester.pump();
+    expect(sources.attempts, [
+      ['收藏音乐', '12345']
+    ]);
+    expect(
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, '取消'))
+            .onPressed,
+        isNull);
+    sources.pending!.completeError(StateError('offline'));
+    await tester.pumpAndSettle();
+    expect(find.text('添加失败，请检查收藏夹 ID、公开权限或网络后重试'), findsOneWidget);
+    expect(
+        tester
+            .widget<TextFormField>(find.byType(TextFormField).at(0))
+            .controller!
+            .text,
+        '12345');
+
+    sources.pending = null;
+    await tester.tap(find.text('添加'));
+    await tester.pumpAndSettle();
+    expect(find.text('收藏音乐'), findsOneWidget);
+    expect(find.text('歌单还是空的'), findsOneWidget);
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byTooltip('添加歌单'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('search playback replaces queue with all results in order',
       (tester) async {
     final tracks = [
@@ -117,6 +197,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(ProviderScope(overrides: [
       playlistNamesProvider.overrideWith(_Names.new),
+      bilibiliPlaylistsProvider.overrideWith(_Sources.new),
       playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
       playlistIdsNotifierProvider('一个很长很长的歌单名称，用来验证小屏幕布局')
           .overrideWith(_Ids.new),
@@ -129,6 +210,7 @@ void main() {
       (tester) async {
     await tester.pumpWidget(ProviderScope(overrides: [
       globalReadyProvider.overrideWith((ref) async {}),
+      bilibiliPlaylistsProvider.overrideWith(_Sources.new),
       player.playerStateNotifierProvider.overrideWith(_Player.new),
       playlistNamesProvider.overrideWith(_Names.new),
       playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),

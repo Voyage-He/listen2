@@ -31,8 +31,9 @@ class PlaylistIdsNotifier extends _$PlaylistIdsNotifier {
     return tracksId;
   }
 
-  void set(List<String> ids) {
-    ref.storage.value.put(_key, ids);
+  Future<void> set(List<String> ids) async {
+    await ref.storage.value.put(_key, ids);
+    state = List.of(ids);
   }
 
   load() async {
@@ -45,7 +46,7 @@ class PlaylistIdsNotifier extends _$PlaylistIdsNotifier {
 
     List<String> added = List.from(previousState);
     added.add(id);
-    set(added);
+    await set(added);
 
     return true;
   }
@@ -56,7 +57,7 @@ class PlaylistIdsNotifier extends _$PlaylistIdsNotifier {
 
     List<String> deleted = List.from(previousState);
     deleted.remove(id);
-    set(deleted);
+    await set(deleted);
 
     return true;
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:listen2/src/ref_extensions.dart';
+import 'package:listen2/src/provider/repo/bilibili_playlists.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'playlist_names.g.dart';
@@ -52,6 +53,7 @@ class PlaylistNames extends _$PlaylistNames {
     if (!previousState.contains(playlistName)) return;
     List<String> deleted = List.from(previousState);
     deleted.remove(playlistName);
+    await ref.read(bilibiliPlaylistsProvider.notifier).remove(playlistName);
     await set(deleted);
 
     return true;

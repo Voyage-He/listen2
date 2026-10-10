@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/repo/playlist_names.dart';
 import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
 import 'package:listen2/src/widget/vinyl_deck.dart';
+import 'package:listen2/src/widget/add_bilibili_playlist.dart';
 
 class PlaylistPicker extends ConsumerWidget {
   const PlaylistPicker({super.key});
@@ -10,13 +11,25 @@ class PlaylistPicker extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) => SafeArea(
         top: false,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Padding(
-              padding: EdgeInsets.fromLTRB(24, 0, 24, 18),
-              child: Text('歌单',
-                  style: TextStyle(
-                      color: vinylInk,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600))),
+          Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 16, 18),
+              child: Row(children: [
+                const Expanded(
+                    child: Text('歌单',
+                        style: TextStyle(
+                            color: vinylInk,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w600))),
+                IconButton(
+                    tooltip: '添加歌单',
+                    icon: const Icon(Icons.add_rounded),
+                    onPressed: () async {
+                      final name = await showAddBilibiliPlaylist(context);
+                      if (name != null && context.mounted) {
+                        Navigator.pop(context, name);
+                      }
+                    }),
+              ])),
           Expanded(
               child: ref.watch(playlistNamesProvider).when(
                     data: (names) => names.isEmpty

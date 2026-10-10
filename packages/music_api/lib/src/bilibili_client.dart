@@ -181,6 +181,50 @@ class BilibiliClient {
     return [bvid, title, author, pic];
   }
 
+  Future<Response> getFavoritePage(String mediaId, int page) => Requests.get(
+        'https://api.bilibili.com/x/v3/fav/resource/list',
+        queryParameters: {'media_id': mediaId, 'ps': '20', 'pn': '$page'},
+        headers: {'User-Agent': 'Mozilla/5.0'},
+      );
+
+  /// Reads every page in collection order, using the same API as Subsonic.
+  Future<List<BilibiliVideoModel>> getFavoriteList(String mediaId) async {
+    if (!RegExp(r'^[1-9][0-9]*$').hasMatch(mediaId)) {
+      throw const FormatException('Invalid Bilibili favorite ID');
+    }
+    final videos = <BilibiliVideoModel>[];
+    final seen = <String>{};
+    for (var page = 1;; page++) {
+      final response = await getFavoritePage(mediaId, page);
+      if (!response.success) {
+        throw StateError(
+            'Bilibili favorites failed: HTTP ${response.statusCode}');
+      }
+      final body = response.json();
+      if (body['code'] != 0 || body['data'] is! Map) {
+        throw StateError('Bilibili favorites failed: ${body['message']}');
+      }
+      final data = body['data'];
+      final medias = data['medias'] ?? [];
+      if (medias is! List || data['has_more'] is! bool) {
+        throw const FormatException('Invalid Bilibili favorites response');
+      }
+      for (final media in medias) {
+        if (media is! Map ||
+            media['bvid'] is! String ||
+            !RegExp(r'^BV[0-9A-Za-z]+$').hasMatch(media['bvid'])) {
+          continue;
+        }
+        final video = BilibiliVideoModel.fromFavorite(media);
+        if (seen.add(video.bvid)) videos.add(video);
+      }
+      if (!data['has_more']) return videos;
+      if (medias.isEmpty) {
+        throw const FormatException('Missing Bilibili favorites page');
+      }
+    }
+  }
+
   Future<String> getAudioUrl(String bvid, int cid) async {
     // TODO Choose audio clarity.
     Response res = await Requests.get(

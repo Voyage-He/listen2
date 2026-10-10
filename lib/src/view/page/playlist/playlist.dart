@@ -3,6 +3,8 @@ import 'package:listen2/src/widget/app_style.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/global/current_playlist.dart';
 import 'package:listen2/src/provider/repo/playlist_names.dart';
+import 'package:listen2/src/provider/repo/bilibili_playlists.dart';
+import 'package:listen2/src/widget/add_bilibili_playlist.dart';
 import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
 import 'package:listen2/src/provider/repo/track.dart';
 import 'package:listen2/src/widget/button/button.dart';
@@ -15,6 +17,17 @@ part 'playlist.g.dart';
 @riverpod
 Future<List<Track>> playlistTracks(
     PlaylistTracksRef ref, String playlistName) async {
+  final mediaId = ref.watch(bilibiliPlaylistsProvider)[playlistName];
+  if (mediaId != null) {
+    var disposed = false;
+    ref.onDispose(() => disposed = true);
+    final tracks = await fetchBilibiliPlaylist(ref, mediaId);
+    if (disposed) return tracks;
+    await ref
+        .read(playlistIdsNotifierProvider(playlistName).notifier)
+        .set(tracks.map((track) => track.bvid).toList());
+    return tracks;
+  }
   List<String> ids = ref.watch(playlistIdsNotifierProvider(playlistName));
 
   List<Future<Track>> futures = [];
@@ -75,12 +88,26 @@ class PlaylistPage extends ConsumerWidget {
 
     final main = Column(children: [
       PageHeading(playlistName == 'favorite' ? '我喜欢的音乐' : playlistName,
-          action: IconButton(
-              tooltip: reverse ? '恢复顺序' : '倒序排列',
-              color: reverse ? AppStyle.accent : AppStyle.muted,
-              onPressed: () =>
-                  ref.read(reverseProvider.notifier).state = !reverse,
-              icon: const Icon(Icons.swap_vert_rounded))),
+          action: Row(mainAxisSize: MainAxisSize.min, children: [
+            IconButton(
+                tooltip: reverse ? '恢复顺序' : '倒序排列',
+                color: reverse ? AppStyle.accent : AppStyle.muted,
+                onPressed: () =>
+                    ref.read(reverseProvider.notifier).state = !reverse,
+                icon: const Icon(Icons.swap_vert_rounded)),
+            IconButton(
+                tooltip: '添加歌单',
+                icon: const Icon(Icons.add_rounded),
+                onPressed: () async {
+                  final name = await showAddBilibiliPlaylist(context);
+                  if (name != null && context.mounted) {
+                    Navigator.of(context).pushReplacement(MaterialPageRoute(
+                        builder: (_) => PlaylistPage(
+                            playlistName: name,
+                            returnToPlayerOnPlay: returnToPlayerOnPlay)));
+                  }
+                }),
+          ])),
       Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
           child: Row(children: [
@@ -125,16 +152,20 @@ class PlaylistPage extends ConsumerWidget {
             : Center(
                 child: Column(
                   children: [
-                    Button(
-                      onTap: () {
-                        ref
-                            .read(playlistIdsNotifierProvider(playlistName)
-                                .notifier)
-                            .toggle(track.bvid);
-                        _actionPopupKey.currentState!.toggle();
-                      },
-                      child: Text(playlistName == 'favorite' ? '取消收藏' : '移出歌单'),
-                    ),
+                    if (!ref
+                        .watch(bilibiliPlaylistsProvider)
+                        .containsKey(playlistName))
+                      Button(
+                        onTap: () {
+                          ref
+                              .read(playlistIdsNotifierProvider(playlistName)
+                                  .notifier)
+                              .toggle(track.bvid);
+                          _actionPopupKey.currentState!.toggle();
+                        },
+                        child:
+                            Text(playlistName == 'favorite' ? '取消收藏' : '移出歌单'),
+                      ),
                     Button(
                       onTap: () {
                         _actionPopupKey.currentState!.toggle();
@@ -215,6 +246,11 @@ class PlaylistPage extends ConsumerWidget {
 
   Widget _playlistSettingPopup(WidgetRef ref, Track? track) {
     final playlistNames = ref.watch(playlistNamesProvider);
+    final remoteNames = ref.watch(bilibiliPlaylistsProvider).keys;
+    final localNames = playlistNames.valueOrNull
+            ?.where((name) => !remoteNames.contains(name))
+            .toList() ??
+        <String>[];
     // final playlistIds = ref.watch(playlistIdsProvider[playlistNames.valueOrNull![0]]);
     return Popup(
       track == null
@@ -232,13 +268,13 @@ class PlaylistPage extends ConsumerWidget {
                     },
                     child: const Text('新建歌单'),
                   ),
-                  if (playlistNames.valueOrNull?.isNotEmpty ?? false)
+                  if (localNames.isNotEmpty)
                     Expanded(
                       child: ListView.builder(
                         shrinkWrap: true,
-                        itemCount: playlistNames.valueOrNull!.length,
+                        itemCount: localNames.length,
                         itemBuilder: (context, index) {
-                          final name = playlistNames.valueOrNull![index];
+                          final name = localNames[index];
                           final isCollected = ref
                               .watch(playlistIdsNotifierProvider(name))
                               .contains(track.bvid);

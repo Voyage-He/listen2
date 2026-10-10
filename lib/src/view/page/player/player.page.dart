@@ -194,6 +194,7 @@ class _PlayerState extends ConsumerState<Player> {
     final favorite = track != null &&
         ref.watch(playlistIdsNotifierProvider('favorite')).contains(track.bvid);
     final position = _scrubbing ?? state.now;
+    final textScaler = MediaQuery.textScalerOf(context);
     return Material(
         color: vinylCream,
         child: Column(children: [
@@ -326,23 +327,43 @@ class _PlayerState extends ConsumerState<Player> {
                             if (mounted) setState(() => _scrubbing = value);
                           }),
                       const SizedBox(height: 28),
-                      Text(track?.title ?? '让音乐，慢慢转起来',
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: vinylInk,
-                              fontSize: 24,
-                              fontWeight: FontWeight.w600,
-                              height: 1.35,
-                              letterSpacing: -.5)),
+                      SizedBox(
+                          key: const ValueKey('player-track-title'),
+                          width: double.infinity,
+                          height: textScaler.scale(24) * 1.35 * 2,
+                          child: Center(
+                              child: Text(track?.title ?? '让音乐，慢慢转起来',
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  strutStyle: const StrutStyle(
+                                      fontSize: 24,
+                                      height: 1.35,
+                                      forceStrutHeight: true),
+                                  style: const TextStyle(
+                                      color: vinylInk,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w600,
+                                      height: 1.35,
+                                      letterSpacing: -.5)))),
                       const SizedBox(height: 10),
-                      Text(track?.singer ?? '选择一张唱片，放下唱针',
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              const TextStyle(color: vinylOlive, fontSize: 13)),
+                      SizedBox(
+                          key: const ValueKey('player-track-singer'),
+                          width: double.infinity,
+                          height: textScaler.scale(13) * 1.4,
+                          child: Center(
+                              child: Text(track?.singer ?? '选择一张唱片，放下唱针',
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  strutStyle: const StrutStyle(
+                                      fontSize: 13,
+                                      height: 1.4,
+                                      forceStrutHeight: true),
+                                  style: const TextStyle(
+                                      color: vinylOlive,
+                                      fontSize: 13,
+                                      height: 1.4)))),
                       const SizedBox(height: 24),
                       Row(
                           mainAxisAlignment: MainAxisAlignment.center,

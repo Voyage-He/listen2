@@ -47,6 +47,8 @@ class _ImportSources extends _Sources {
 class _Player extends player.PlayerStateNotifier {
   @override
   player.PlayerState build() => player.PlayerState();
+
+  void select(Track? track) => state = player.PlayerState(track: track);
 }
 
 final _singleTrack = Track('one', 'Test record', 'Artist', '');
@@ -88,6 +90,72 @@ class _SearchQueue extends CurrentPlaylistNotifier {
 }
 
 void main() {
+  for (final (size, scale) in [
+    (const Size(320, 640), 1.0),
+    (const Size(390, 844), 1.6),
+  ]) {
+    testWidgets('track titles keep layout and scroll stable at $size / $scale',
+        (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final tracks = [
+        Track('short', '晴天', '周杰伦', ''),
+        Track('long', '这是一首很长很长的歌曲名称，包含翻唱版本与现场演出信息，超过两行也应保持布局稳定',
+            'A very long artist name', ''),
+        Track('mixed', 'Live 🎵\n特别现场版\nEncore', '', ''),
+      ];
+      final playback = _Player();
+      await tester.pumpWidget(ProviderScope(
+          overrides: [
+            player.playerStateNotifierProvider.overrideWith(() => playback),
+            playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
+            for (final track in tracks)
+              trackCoverProvider(track)
+                  .overrideWith((ref) async => throw StateError('no cover')),
+          ],
+          child: MaterialApp(
+              theme: AppStyle.theme,
+              builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(context)
+                      .copyWith(textScaler: TextScaler.linear(scale)),
+                  child: child!),
+              home: const Scaffold(body: Player()))));
+      await tester.pumpAndSettle();
+      final scroll = tester.state<ScrollableState>(find.byType(Scrollable));
+      scroll.position.jumpTo(scroll.position.maxScrollExtent);
+      await tester.pump();
+      final offset = scroll.position.pixels;
+      final extent = scroll.position.maxScrollExtent;
+      final bounds = {
+        for (final key in [
+          'vinyl-record',
+          'player-track-title',
+          'player-track-singer'
+        ])
+          key: tester.getRect(find.byKey(ValueKey(key))),
+      };
+      final controls = tester.getRect(find.byTooltip('选唱片'));
+      final time = tester.getRect(find.text('0:00').first);
+
+      for (final track in <Track?>[...tracks, null]) {
+        playback.select(track);
+        await tester.pumpAndSettle();
+        for (final entry in bounds.entries) {
+          expect(tester.getRect(find.byKey(ValueKey(entry.key))), entry.value,
+              reason:
+                  'Switching to ${track?.title} must not move ${entry.key}');
+        }
+        expect(tester.getRect(find.byTooltip('选唱片')), controls);
+        expect(tester.getRect(find.text('0:00').first), time);
+        expect(scroll.position.pixels, offset);
+        expect(scroll.position.maxScrollExtent, extent);
+        expect(tester.takeException(), isNull);
+      }
+    });
+  }
+
   testWidgets('playlist plus validates inputs and retries failed imports',
       (tester) async {
     tester.view.physicalSize = const Size(320, 640);

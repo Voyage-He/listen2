@@ -39,7 +39,7 @@ class VinylDeckGeometry {
 
   Offset elbow(Offset tip) {
     final vector = tip - pivot;
-    final normal = Offset(vector.dy, -vector.dx) / vector.distance;
+    final normal = Offset(-vector.dy, vector.dx) / vector.distance;
     return Offset.lerp(pivot, tip, .78)! + normal * size.width * .03;
   }
 

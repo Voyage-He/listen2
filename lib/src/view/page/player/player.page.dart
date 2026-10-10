@@ -108,19 +108,18 @@ class _PlayerState extends ConsumerState<Player> {
   }
 
   Future<void> _skip(int direction) async {
-    final playback = ref.read(playerStateNotifierProvider);
-    final track = playback.track;
+    final track = ref.read(playerStateNotifierProvider).track;
     if (track == null) return;
-    final queue = ref.read(currentPlaylistNotifierProvider).playlist;
-    final index = queue.indexOf(track.bvid);
+    final playlist = ref.read(currentPlaylistNotifierProvider).playlist;
+    final index = playlist.indexOf(track.bvid);
     final next = index + direction;
-    if (index < 0 || next < 0 || next >= queue.length) {
+    if (index < 0 || next < 0 || next >= playlist.length) {
       _showUnavailable(direction);
       return;
     }
-    await _run(() => ref.read(currentPlaylistNotifierProvider.notifier).play(
-        queue[next], queue,
-        autoplay: playback.state == ap.PlayerState.playing));
+    await _run(() async {
+      await ref.read(currentPlaylistNotifierProvider.notifier).skip(direction);
+    });
   }
 
   Future<void> _showPlaylists() async {

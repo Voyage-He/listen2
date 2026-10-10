@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
+import 'package:listen2/src/provider/global/current_playlist.dart';
 import 'package:listen2/src/provider/repo/track.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -36,6 +37,10 @@ class PlayerState {
 
 /// Connects the player to iOS Now Playing and Android media controls.
 class AudioHandler extends BaseAudioHandler {
+  AudioHandler({Future<void> Function(int direction)? onSkip})
+      : _onSkip = onSkip;
+
+  final Future<void> Function(int direction)? _onSkip;
   final player = ap.AudioPlayer();
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   bool _resumeAfterInterruption = false;
@@ -89,11 +94,13 @@ class AudioHandler extends BaseAudioHandler {
     final playing = state == ap.PlayerState.playing;
     playbackState.add(playbackState.value.copyWith(
       controls: [
+        MediaControl.skipToPrevious,
         playing ? MediaControl.pause : MediaControl.play,
+        MediaControl.skipToNext,
         MediaControl.stop
       ],
       systemActions: const {MediaAction.seek},
-      androidCompactActionIndices: const [0],
+      androidCompactActionIndices: const [0, 1, 2],
       playing: playing,
       processingState: state == ap.PlayerState.completed
           ? AudioProcessingState.completed
@@ -102,6 +109,12 @@ class AudioHandler extends BaseAudioHandler {
               : AudioProcessingState.ready,
     ));
   }
+
+  @override
+  Future<void> skipToPrevious() async => _onSkip?.call(-1);
+
+  @override
+  Future<void> skipToNext() async => _onSkip?.call(1);
 
   @override
   Future<void> play() async {
@@ -239,7 +252,9 @@ class PlayerStateNotifier extends _$PlayerStateNotifier {
 @Riverpod(keepAlive: true)
 Future<AudioHandler> audioHandler(AudioHandlerRef ref) async {
   final handler = await AudioService.init(
-    builder: () => AudioHandler(),
+    builder: () => AudioHandler(onSkip: (direction) async {
+      await ref.read(currentPlaylistNotifierProvider.notifier).skip(direction);
+    }),
     config: const AudioServiceConfig(androidStopForegroundOnPause: false),
   );
   await handler.initialize();

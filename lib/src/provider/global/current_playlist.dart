@@ -33,6 +33,7 @@ class CurrentPlaylistState {
 @Riverpod(keepAlive: true)
 class CurrentPlaylistNotifier extends _$CurrentPlaylistNotifier {
   bool initilized = false;
+  bool _skipping = false;
 
   @override
   CurrentPlaylistState build() {
@@ -73,6 +74,26 @@ class CurrentPlaylistNotifier extends _$CurrentPlaylistNotifier {
     await ref
         .read(playerStateNotifierProvider.notifier)
         .playTrackById(trackId, autoplay: autoplay);
+  }
+
+  /// Share queue navigation between the record gestures and system controls.
+  Future<bool> skip(int direction) async {
+    if (_skipping || (direction != -1 && direction != 1)) return false;
+    final playlist = List<String>.of(state.playlist);
+    final playback = ref.read(playerStateNotifierProvider);
+    final track = playback.track;
+    if (track == null) return false;
+    final index = playlist.indexOf(track.bvid);
+    final next = index + direction;
+    if (index < 0 || next < 0 || next >= playlist.length) return false;
+    _skipping = true;
+    try {
+      await play(playlist[next], playlist,
+          autoplay: playback.state == ap.PlayerState.playing);
+      return true;
+    } finally {
+      _skipping = false;
+    }
   }
 
   void setNext(String trackId) {

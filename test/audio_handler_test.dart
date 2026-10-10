@@ -12,6 +12,7 @@ void main() {
   const codec = StandardMethodCodec();
   late AudioHandler handler;
   late List<MethodCall> calls;
+  late List<int> skips;
 
   void emit(String event, [Object? value]) {
     binding.channelBuffers.push(
@@ -23,6 +24,7 @@ void main() {
 
   setUp(() async {
     calls = [];
+    skips = [];
     binding.defaultBinaryMessenger
         .setMockMethodCallHandler(sessionChannel, (_) async => null);
     binding.defaultBinaryMessenger.setMockMethodCallHandler(playerChannel,
@@ -37,7 +39,7 @@ void main() {
       if (call.method == 'setSourceUrl') emit('audio.onPrepared', true);
       return null;
     });
-    handler = AudioHandler();
+    handler = AudioHandler(onSkip: (direction) async => skips.add(direction));
     await handler.initialize();
   });
 
@@ -56,13 +58,19 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(calls.last.method, 'resume');
     expect(handler.playbackState.value.playing, isTrue);
-    expect(handler.playbackState.value.controls.first, MediaControl.pause);
+    expect(handler.playbackState.value.controls, [
+      MediaControl.skipToPrevious,
+      MediaControl.pause,
+      MediaControl.skipToNext,
+      MediaControl.stop,
+    ]);
+    expect(handler.playbackState.value.androidCompactActionIndices, [0, 1, 2]);
 
     await handler.pause();
     await Future<void>.delayed(Duration.zero);
     expect(calls.last.method, 'pause');
     expect(handler.playbackState.value.playing, isFalse);
-    expect(handler.playbackState.value.controls.first, MediaControl.play);
+    expect(handler.playbackState.value.controls[1], MediaControl.play);
 
     await handler.seek(const Duration(seconds: 15));
     expect(calls.last.method, 'seek');
@@ -72,6 +80,12 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(
         handler.playbackState.value.processingState, AudioProcessingState.idle);
+  });
+
+  test('system previous and next controls reach the queue in order', () async {
+    await handler.skipToPrevious();
+    await handler.skipToNext();
+    expect(skips, [-1, 1]);
   });
 
   test('mounting a record with the needle raised never starts audio', () async {

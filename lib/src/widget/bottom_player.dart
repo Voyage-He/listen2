@@ -1,96 +1,67 @@
-import 'package:flutter/widgets.dart';
-import 'package:flutter/material.dart' show Colors, Icons, Theme;
+import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/global/player.dart';
-import 'package:listen2/src/provider/repo/track.dart';
-import 'package:listen2/src/ref_extensions.dart';
-
 import 'package:listen2/src/view/page/player/player.page.dart';
-
 import 'package:listen2/src/widget/track_cover.widget.dart';
+import 'package:listen2/src/widget/vinyl_deck.dart';
 
 class BottomPlayer extends ConsumerWidget {
   const BottomPlayer({super.key});
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (ref.watch(audioHandlerProvider).valueOrNull == null) return const SizedBox.shrink();
-    var track = ref.watch(playerStateNotifierProvider.select((it) => it.track));
-    return GestureDetector(
-      onTap: () => _navigate2PlayerPage(context, track),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 20.0),
-        decoration: const BoxDecoration(color: Colors.white, boxShadow: [
-          BoxShadow(
-              color: Color.fromARGB(80, 0, 0, 0),
-              offset: Offset(0, 0),
-              blurRadius: 10.0,
-              spreadRadius: 0.0)
-        ]),
-        child: Row(
-          children: [
-            _cover(),
-            _title(track),
-            _controlButton(ref),
-            const Icon(
-              Icons.list,
-              size: 40,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _cover() {
-    return const CurrentTrackCover(width: 50, height: 50);
-  }
-
-  Widget _title(Track? track) {
-    return Expanded(
-        child: Text(track?.title ?? '',
-            style: const TextStyle(
-                fontSize: 20, overflow: TextOverflow.ellipsis)));
-  }
-
-  Widget _controlButton(WidgetRef ref) {
-    var playerState = ref.playerState;
-    final isPlaying = playerState.state == ap.PlayerState.playing;
-    // print('controlbutton$isPlaying');
-    return GestureDetector(
-        onTap: () {
-          final player = ref.read(playerStateNotifierProvider.notifier);
-          if (isPlaying) {
-            player.pause();
-          } else {
-            player.resume();
-          }
-        },
-        child: Icon(
-          isPlaying ? Icons.pause_circle_outline : Icons.play_circle_outline,
-          size: 35,
-        ));
-  }
-
-  void _navigate2PlayerPage(BuildContext context, Track? track) {
-    if (track == null) return;
-    Navigator.of(context).push(PageRouteBuilder(
-      pageBuilder: (context, _, __) => const Player(),
-      transitionDuration: const Duration(milliseconds: 100),
-      reverseTransitionDuration: const Duration(milliseconds: 100),
-      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        return FadeTransition(
-          opacity: Tween<double>(begin: 0, end: 1).animate(animation),
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, 0.3),
-              end: Offset.zero,
-            ).animate(animation),
-            child: child,
-          ),
-        );
-      },
-    ));
+    if (ref.watch(audioHandlerProvider).valueOrNull == null) {
+      return const SizedBox.shrink();
+    }
+    final state = ref.watch(playerStateNotifierProvider);
+    final track = state.track;
+    final playing = state.state == ap.PlayerState.playing;
+    return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: Material(
+            color: vinylInk,
+            borderRadius: BorderRadius.circular(20),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => Navigator.of(context)
+                  .push(MaterialPageRoute(builder: (_) => const Player())),
+              child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+                  child: Row(children: [
+                    SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: VinylRecord(
+                            playing: playing,
+                            position: state.now,
+                            cover: const CurrentTrackCover(
+                                width: 48, height: 48, fit: BoxFit.cover))),
+                    const SizedBox(width: 14),
+                    Expanded(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          Text(track?.title ?? '打开你的唱机',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: vinylCream,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500)),
+                          const SizedBox(height: 5),
+                          Text(track?.singer ?? '选一张唱片，让音乐转起来',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: Color(0xFFABB19E), fontSize: 11)),
+                        ])),
+                    IconButton(
+                        tooltip: '打开唱机',
+                        icon: const Icon(Icons.open_in_full_rounded,
+                            color: vinylGold, size: 20),
+                        onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const Player()))),
+                  ])),
+            )));
   }
 }

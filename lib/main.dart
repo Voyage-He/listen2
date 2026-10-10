@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'package:flutter/widgets.dart';
-import 'package:flutter/material.dart' show Colors;
+import 'package:flutter/material.dart';
+import 'package:listen2/src/widget/app_style.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/global/main.dart';
@@ -12,10 +12,10 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   runApp(ProviderScope(
-    child: WidgetsApp(
+    child: MaterialApp(
+      theme: AppStyle.theme,
       title: "listen2 music player",
-      color: Colors.white,
-      textStyle: const TextStyle(fontSize: 18, color: Colors.black),
+
       debugShowCheckedModeBanner: false,
       // home: const Home(),
       initialRoute: '/',
@@ -23,7 +23,7 @@ void main() async {
         WidgetBuilder builder;
         switch (settings.name) {
           case '/':
-            builder = (context) => Home();
+            builder = (context) => const Home();
             break;
           default:
             throw Exception('Invalid route: ${settings.name}');
@@ -87,7 +87,7 @@ class App extends ConsumerWidget {
       DeviceOrientation.portraitDown,
     ]);
 
-    const splash = Text('initialzing');
+    const splash = Center(child: CircularProgressIndicator());
 
     var w = isReady.when(
       data: (data) => child,
@@ -95,15 +95,24 @@ class App extends ConsumerWidget {
       error: (obj, stackTrace) {
         debugPrint(obj.toString());
         debugPrint(stackTrace.toString());
-        return const Text('Error');
+        return EmptyState(
+            icon: Icons.wifi_off_rounded,
+            title: '初始化失败',
+            message: '请检查网络后重试',
+            action: FilledButton(
+                onPressed: () => ref.invalidate(globalReadyProvider),
+                child: const Text('重试')));
       },
     );
 
-    return GestureDetector(
-        onTap: () => Focus.of(context).requestFocus(FocusNode()),
-        onVerticalDragStart: (_) => Focus.of(context).requestFocus(FocusNode()),
-        child: SafeArea(
-          child: Container(color: Colors.white, child: w),
-        ));
+    return Scaffold(
+      body: GestureDetector(
+          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+          onVerticalDragStart: (_) =>
+              FocusManager.instance.primaryFocus?.unfocus(),
+          child: SafeArea(
+            child: Material(color: AppStyle.background, child: w),
+          )),
+    );
   }
 }

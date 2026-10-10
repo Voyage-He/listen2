@@ -12,6 +12,7 @@ dependencies:
     sdk: flutter
   hive: ^2.2.3
   http: ^0.13.6
+  http_parser: ^4.0.2
   requests: ^4.7.0
   shared_preferences: ^2.3.1
 

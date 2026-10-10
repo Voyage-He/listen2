@@ -1,0 +1,709 @@
+import 'dart:math' as math;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
+
+const vinylCream = Color(0xFFF1EFE7);
+const vinylInk = Color(0xFF262923);
+const vinylOlive = Color(0xFF657052);
+const vinylGold = Color(0xFFDBBE7E);
+const vinylRevolution = Duration(seconds: 60);
+
+/// A record's outer grooves scrub; its center label moves the record sideways.
+class VinylDeck extends StatefulWidget {
+  const VinylDeck(
+      {super.key,
+      required this.playing,
+      required this.position,
+      required this.duration,
+      required this.cover,
+      this.enabled = true,
+      this.busy = false,
+      this.unavailableDirection,
+      required this.onArmChanged,
+      required this.onSeek,
+      required this.onSkip,
+      this.onScrubChanged});
+  final bool playing;
+  final bool enabled;
+  final bool busy;
+  final int? unavailableDirection;
+  final Duration position;
+  final Duration duration;
+  final Widget cover;
+  final Future<void> Function(bool) onArmChanged;
+  final Future<void> Function(Duration) onSeek;
+  final Future<void> Function(int) onSkip;
+  final ValueChanged<Duration?>? onScrubChanged;
+
+  @override
+  State<VinylDeck> createState() => _VinylDeckState();
+}
+
+class _VinylDeckState extends State<VinylDeck>
+    with SingleTickerProviderStateMixin {
+  late final _translation = AnimationController.unbounded(vsync: this);
+  double _dragOrigin = 0;
+
+  @override
+  void dispose() {
+    _translation.dispose();
+    super.dispose();
+  }
+
+  int? _recordPointer;
+  double _sweep = 0;
+  double _lastAngle = 0;
+  Offset? _start;
+  Offset? _end;
+  bool _swiping = false;
+  Duration? _target;
+  Duration? _pendingSeek;
+  Duration _scrubOrigin = Duration.zero;
+  double? _armDrag;
+
+  @override
+  void didUpdateWidget(VinylDeck oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.busy &&
+        (oldWidget.busy || widget.position != oldWidget.position)) {
+      _pendingSeek = null;
+    }
+  }
+
+  bool get _available => widget.enabled && !widget.busy;
+  Duration _scrubTarget() {
+    final milliseconds = _scrubOrigin.inMilliseconds +
+        _sweep / (2 * math.pi) * vinylRevolution.inMilliseconds;
+    return Duration(
+        milliseconds:
+            milliseconds.round().clamp(0, widget.duration.inMilliseconds));
+  }
+
+  void _startRecord(Offset position, double diameter) {
+    if (!_available) return;
+    final center = Offset(diameter / 2, diameter / 2);
+    final local = position - center;
+    _translation.stop();
+    _dragOrigin = _translation.value;
+    _start = position;
+    _end = _start;
+    _swiping = local.distance < diameter * .29;
+    _sweep = 0;
+    _scrubOrigin = widget.position;
+    _lastAngle = math.atan2(local.dy, local.dx);
+  }
+
+  void _moveRecord(Offset position, double diameter) {
+    if (_start == null || !_available) return;
+    _end = position;
+    if (_swiping) {
+      final displacement = _dragOrigin + (_end!.dx - _start!.dx) * .18;
+      _translation.value = 24 * displacement / (24 + displacement.abs());
+      setState(() {});
+      return;
+    }
+    if (widget.duration <= Duration.zero) return;
+    final local = position - Offset(diameter / 2, diameter / 2);
+    if (local.distance < diameter * .18) return;
+    final angle = math.atan2(local.dy, local.dx);
+    var delta = angle - _lastAngle;
+    if (delta > math.pi) delta -= 2 * math.pi;
+    if (delta < -math.pi) delta += 2 * math.pi;
+    _lastAngle = angle;
+    _sweep += delta;
+    setState(() {
+      _target = _scrubTarget();
+    });
+    widget.onScrubChanged?.call(_target);
+  }
+
+  Future<void> _endRecord() async {
+    final movement =
+        _start == null || _end == null ? Offset.zero : _end! - _start!;
+    final target = _target;
+    final swipe = _swiping &&
+        movement.dx.abs() >= 48 &&
+        movement.dy.abs() < movement.dx.abs() * .65;
+    if (target != null && !swipe) _pendingSeek = target;
+    _cancelRecord();
+    if (!_available) return;
+    if (swipe) {
+      HapticFeedback.selectionClick();
+      await widget.onSkip(movement.dx < 0 ? 1 : -1);
+    } else if (target != null) {
+      HapticFeedback.selectionClick();
+      await widget.onSeek(target);
+    }
+  }
+
+  void _cancelRecord() {
+    if (MediaQuery.of(context).disableAnimations) {
+      _translation.value = 0;
+    } else {
+      _translation.animateTo(0,
+          duration: const Duration(milliseconds: 360),
+          curve: Curves.easeOutCubic);
+    }
+    setState(() {
+      _start = null;
+      _end = null;
+      _target = null;
+    });
+    widget.onScrubChanged?.call(null);
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      LayoutBuilder(builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final diameter = width * .77;
+        final progress = widget.duration > Duration.zero
+            ? ((_target ?? widget.position).inMilliseconds /
+                    widget.duration.inMilliseconds)
+                .clamp(0.0, 1.0)
+            : 0.0;
+        final arm = _armDrag ?? (widget.playing ? 1.0 : 0.0);
+        return AspectRatio(
+            aspectRatio: 1.04,
+            child: Container(
+              decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF85705C), Color(0xFF5C4C3D)]),
+                  boxShadow: [
+                    BoxShadow(
+                        color: const Color(0xFF3A3228).withOpacity(.2),
+                        blurRadius: 24,
+                        offset: const Offset(0, 12))
+                  ]),
+              child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Stack(children: [
+                    Positioned.fill(
+                        child: CustomPaint(painter: _PlinthPainter())),
+                    Positioned(
+                      left: width * .035,
+                      top: width * .105,
+                      width: diameter,
+                      height: diameter,
+                      child: Semantics(
+                          label: '唱片，外圈旋转调整播放位置，中心左右拨动换曲',
+                          value: '${(_target ?? widget.position).inSeconds} 秒',
+                          increasedValue:
+                              '${(widget.position.inSeconds + 10).clamp(0, widget.duration.inSeconds)} 秒',
+                          decreasedValue:
+                              '${(widget.position.inSeconds - 10).clamp(0, widget.duration.inSeconds)} 秒',
+                          onIncrease: _available &&
+                                  widget.duration > Duration.zero
+                              ? () => widget.onSeek(Duration(
+                                  milliseconds: (widget.position.inMilliseconds +
+                                          10000)
+                                      .clamp(
+                                          0, widget.duration.inMilliseconds)))
+                              : null,
+                          onDecrease: _available &&
+                                  widget.duration > Duration.zero
+                              ? () => widget.onSeek(Duration(
+                                  milliseconds: (widget.position.inMilliseconds -
+                                          10000)
+                                      .clamp(0, widget.duration.inMilliseconds)))
+                              : null,
+                          child: RawGestureDetector(
+                              // Own the gesture from pointer-down, before the
+                              // enclosing page's vertical scroll recognizer.
+                              gestures: _available
+                                  ? {
+                                      EagerGestureRecognizer:
+                                          GestureRecognizerFactoryWithHandlers<
+                                              EagerGestureRecognizer>(
+                                        EagerGestureRecognizer.new,
+                                        (_) {},
+                                      ),
+                                    }
+                                  : const {},
+                              child: Listener(
+                                key: const ValueKey('vinyl-record'),
+                                behavior: HitTestBehavior.opaque,
+                                onPointerDown: (event) {
+                                  if (!_available || _recordPointer != null) {
+                                    return;
+                                  }
+                                  _recordPointer = event.pointer;
+                                  _startRecord(event.localPosition, diameter);
+                                },
+                                onPointerMove: (event) {
+                                  if (event.pointer == _recordPointer) {
+                                    _moveRecord(event.localPosition, diameter);
+                                  }
+                                },
+                                onPointerUp: (event) {
+                                  if (event.pointer != _recordPointer) return;
+                                  _recordPointer = null;
+                                  _endRecord();
+                                },
+                                onPointerCancel: (event) {
+                                  if (event.pointer != _recordPointer) return;
+                                  _recordPointer = null;
+                                  _cancelRecord();
+                                },
+                                child: AnimatedBuilder(
+                                    animation: _translation,
+                                    builder: (context, child) =>
+                                        Transform.translate(
+                                            offset:
+                                                Offset(_translation.value, 0),
+                                            child: child),
+                                    child: VinylRecord(
+                                        playing: widget.playing &&
+                                            _start == null &&
+                                            _pendingSeek == null,
+                                        position: _target ??
+                                            _pendingSeek ??
+                                            widget.position,
+                                        cover: widget.cover)),
+                              ))),
+                    ),
+                    Positioned.fill(
+                        child: TweenAnimationBuilder<double>(
+                            tween: Tween(end: arm),
+                            duration: const Duration(milliseconds: 460),
+                            curve: Curves.easeInOutCubic,
+                            builder: (context, value, _) => Semantics(
+                                label: widget.playing ? '抬起唱针，暂停' : '放下唱针，播放',
+                                button: true,
+                                onTap: _available
+                                    ? () => widget.onArmChanged(!widget.playing)
+                                    : null,
+                                child: GestureDetector(
+                                  key: const ValueKey('tonearm'),
+                                  dragStartBehavior: DragStartBehavior.down,
+                                  onTap: _available
+                                      ? () {
+                                          HapticFeedback.selectionClick();
+                                          widget.onArmChanged(!widget.playing);
+                                        }
+                                      : null,
+                                  onPanStart: _available
+                                      ? (_) => setState(() =>
+                                          _armDrag = widget.playing ? 1 : 0)
+                                      : null,
+                                  onPanUpdate: _available
+                                      ? (details) => setState(() => _armDrag =
+                                          ((_armDrag ?? arm) -
+                                                  details.delta.dx /
+                                                      (width * .26))
+                                              .clamp(0.0, 1.0))
+                                      : null,
+                                  onPanEnd: _available
+                                      ? (_) {
+                                          final lowered =
+                                              (_armDrag ?? arm) >= .5;
+                                          setState(() => _armDrag = null);
+                                          HapticFeedback.selectionClick();
+                                          widget.onArmChanged(lowered);
+                                        }
+                                      : null,
+                                  onPanCancel: () =>
+                                      setState(() => _armDrag = null),
+                                  child: CustomPaint(
+                                      painter:
+                                          _TonearmPainter(value, progress)),
+                                )))),
+                    for (final direction in [-1, 1])
+                      Positioned(
+                        left: width * .035 + (direction > 0 ? diameter / 2 : 0),
+                        top: width * .105,
+                        width: diameter / 2,
+                        height: diameter,
+                        child: IgnorePointer(
+                            child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 250),
+                          child: widget.unavailableDirection != direction
+                              ? const SizedBox.shrink()
+                              : Semantics(
+                                  label: direction < 0 ? '没有上一曲' : '没有下一曲',
+                                  liveRegion: true,
+                                  child: SizedBox.expand(
+                                    key: ValueKey(direction < 0
+                                        ? 'no-previous-track'
+                                        : 'no-next-track'),
+                                    child: CustomPaint(
+                                        painter: _RecordEdgePainter(direction)),
+                                  ),
+                                ),
+                        )),
+                      ),
+                    Positioned(
+                        left: 18,
+                        bottom: 14,
+                        child: Row(children: [
+                          AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: widget.playing
+                                      ? const Color(0xFFD7E6AC)
+                                      : const Color(0xFFAD9D86),
+                                  boxShadow: widget.playing
+                                      ? [
+                                          const BoxShadow(
+                                              color: Color(0x88D7E6AC),
+                                              blurRadius: 8)
+                                        ]
+                                      : [])),
+                          const SizedBox(width: 8),
+                          Text(
+                              widget.busy
+                                  ? 'LOADING'
+                                  : widget.playing
+                                      ? '60s / REV'
+                                      : 'STANDBY',
+                              style: const TextStyle(
+                                  fontSize: 9,
+                                  letterSpacing: 1.5,
+                                  color: Color(0xFFE9DECB))),
+                        ])),
+                    Positioned(
+                        right: 16,
+                        bottom: 12,
+                        child: Text('L2 / 01',
+                            style: TextStyle(
+                                fontSize: 9,
+                                letterSpacing: 1,
+                                color: Colors.white.withOpacity(.45)))),
+                  ])),
+            ));
+      });
+}
+
+class VinylRecord extends StatefulWidget {
+  const VinylRecord(
+      {super.key,
+      required this.playing,
+      required this.cover,
+      this.position = Duration.zero});
+  final bool playing;
+  final Widget cover;
+  final Duration position;
+  @override
+  State<VinylRecord> createState() => _VinylRecordState();
+}
+
+class _VinylRecordState extends State<VinylRecord>
+    with SingleTickerProviderStateMixin {
+  late final _spin = AnimationController.unbounded(vsync: this);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(VinylRecord oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.position != widget.position ||
+        oldWidget.playing != widget.playing) {
+      _sync();
+    }
+  }
+
+  void _sync() {
+    // Re-anchor to audio time; interpolate at one revolution per minute
+    // between the audio engine's position updates.
+    final turns =
+        widget.position.inMicroseconds / vinylRevolution.inMicroseconds;
+    _spin.stop();
+    _spin.value = turns;
+    if (widget.playing && !MediaQuery.of(context).disableAnimations) {
+      _spin.animateTo(turns + 1,
+          duration: vinylRevolution, curve: Curves.linear);
+    }
+  }
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => RepaintBoundary(
+          child: AnimatedBuilder(
+        animation: _spin,
+        builder: (context, child) =>
+            Transform.rotate(angle: _spin.value * math.pi * 2, child: child),
+        child: Container(
+            decoration: const BoxDecoration(shape: BoxShape.circle, boxShadow: [
+              BoxShadow(
+                  color: Color(0x66000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 7))
+            ]),
+            child: Stack(alignment: Alignment.center, children: [
+              const Positioned.fill(
+                  child: CustomPaint(painter: _RecordPainter())),
+              FractionallySizedBox(
+                  widthFactor: .35,
+                  heightFactor: .35,
+                  child: ClipOval(child: widget.cover)),
+              FractionallySizedBox(
+                  widthFactor: .35,
+                  heightFactor: .35,
+                  child: DecoratedBox(
+                      decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: Colors.white.withOpacity(.18),
+                              width: 3)))),
+              Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFC7C6BC),
+                      border: Border.all(
+                          color: const Color(0xFF131713), width: 3))),
+            ])),
+      ));
+}
+
+class _RecordEdgePainter extends CustomPainter {
+  const _RecordEdgePainter(this.direction);
+  final int direction;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(direction < 0 ? size.width : 0, size.height / 2);
+    final rim = Rect.fromCircle(center: center, radius: size.height / 2 - 4);
+    final start = (direction < 0 ? math.pi : 0) - .7;
+    const red = Color(0xFFE76A5D);
+    canvas.drawArc(
+        rim,
+        start,
+        1.4,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 12
+          ..color = red.withOpacity(.6)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
+    canvas.drawArc(
+        rim,
+        start,
+        1.4,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 2.5
+          ..color = red);
+  }
+
+  @override
+  bool shouldRepaint(_RecordEdgePainter oldDelegate) =>
+      oldDelegate.direction != direction;
+}
+
+class _RecordPainter extends CustomPainter {
+  const _RecordPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.width / 2;
+    canvas.drawCircle(
+        center,
+        radius,
+        Paint()
+          ..shader = const RadialGradient(
+              colors: [Color(0xFF323732), Color(0xFF111512), Color(0xFF252A25)],
+              stops: [0, .8, 1]).createShader(Offset.zero & size));
+    for (double r = .20; r < .99; r += .013) {
+      canvas.drawCircle(
+          center,
+          radius * r,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = .6
+            ..color = Colors.white.withOpacity(r > .92 ? .09 : .055));
+    }
+    for (final angle in [-.9, math.pi - .9]) {
+      canvas.drawArc(
+          Rect.fromCircle(center: center, radius: radius * .7),
+          angle,
+          .38,
+          false,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = radius * .5
+            ..shader = SweepGradient(colors: [
+              Colors.white.withOpacity(.0),
+              Colors.white.withOpacity(.11),
+              Colors.white.withOpacity(.0)
+            ]).createShader(Offset.zero & size));
+    }
+    canvas.drawCircle(
+        center,
+        radius * .98,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.3
+          ..color = const Color(0xFF555B50));
+  }
+
+  @override
+  bool shouldRepaint(_RecordPainter oldDelegate) => false;
+}
+
+// The arm and its cradle share the same parked cartridge geometry.
+Offset _armPivot(Size size) => Offset(size.width * .855, size.height * .18);
+Offset _armTip(Size size, double lowered, double progress) => Offset.lerp(
+    Offset(size.width * .885, size.height * .72),
+    Offset(size.width * (.63 - progress * .10), size.height * .60),
+    lowered)!;
+Offset _armElbow(Size size, Offset tip) =>
+    Offset.lerp(_armPivot(size), tip, .78)! + Offset(size.width * .045, 0);
+double _cartridgeAngle(Size size, Offset tip) {
+  final elbow = _armElbow(size, tip);
+  return math.atan2(tip.dy - elbow.dy, tip.dx - elbow.dx) - math.pi / 2;
+}
+
+class _PlinthPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final random = math.Random(9);
+    for (var i = 0; i < 95; i++) {
+      final y = random.nextDouble() * size.height;
+      final path = Path()
+        ..moveTo(0, y)
+        ..cubicTo(
+            size.width * .35, y - 3, size.width * .7, y + 3, size.width, y);
+      canvas.drawPath(
+          path,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = random.nextDouble() + .3
+            ..color =
+                Colors.black.withOpacity(.025 + random.nextDouble() * .025));
+    }
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(
+            Rect.fromLTWH(7, 7, size.width - 14, size.height - 14),
+            const Radius.circular(18)),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..color = Colors.white.withOpacity(.09));
+    for (final p in [const Offset(16, 16), Offset(size.width - 16, 16)]) {
+      canvas.drawCircle(p, 2.3, Paint()..color = const Color(0xFFBDA98A));
+    }
+    final parkedTip = _armTip(size, 0, 0);
+    canvas.save();
+    canvas.translate(parkedTip.dx, parkedTip.dy);
+    canvas.rotate(_cartridgeAngle(size, parkedTip));
+    final cradle = RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-11, -13, 22, 38), const Radius.circular(5));
+    canvas.drawRRect(cradle, Paint()..color = const Color(0xFF352D25));
+    canvas.drawRRect(
+        cradle,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = const Color(0xFFAB9470));
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_PlinthPainter oldDelegate) => false;
+}
+
+class _TonearmPainter extends CustomPainter {
+  _TonearmPainter(this.lowered, this.progress);
+  final double lowered;
+  final double progress;
+  Size? _size;
+  @override
+  void paint(Canvas canvas, Size size) {
+    _size = size;
+    final pivot = _armPivot(size);
+    final tip = _armTip(size, lowered, progress);
+    final elbow = _armElbow(size, tip);
+    final path = Path()
+      ..moveTo(pivot.dx, pivot.dy)
+      ..lineTo(elbow.dx, elbow.dy)
+      ..lineTo(tip.dx, tip.dy);
+    canvas.drawPath(
+        path.shift(const Offset(4, 6)),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 9
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..color = Colors.black.withOpacity(.28));
+    canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 8
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..color = const Color(0xFF3A3C34));
+    canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 5
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..shader = const LinearGradient(colors: [
+            Color(0xFFF0E3C5),
+            Color(0xFFB89D6C),
+            Color(0xFFE9D6AF)
+          ]).createShader(Offset.zero & size));
+    canvas.drawCircle(pivot, 17, Paint()..color = const Color(0xFF35372F));
+    canvas.drawCircle(
+        pivot,
+        12,
+        Paint()
+          ..shader = const LinearGradient(
+                  colors: [Color(0xFFE6D7B6), Color(0xFF97815A)])
+              .createShader(Rect.fromCircle(center: pivot, radius: 12)));
+    canvas.drawCircle(pivot, 4, Paint()..color = const Color(0xFF655A42));
+    canvas.save();
+    canvas.translate(tip.dx, tip.dy);
+    canvas.rotate(_cartridgeAngle(size, tip));
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(
+            const Rect.fromLTWH(-8, -10, 16, 27), const Radius.circular(3)),
+        Paint()..color = const Color(0xFF212820));
+    canvas.drawRect(
+        const Rect.fromLTWH(-5, 6, 10, 8), Paint()..color = vinylGold);
+    canvas.drawLine(
+        const Offset(0, 14),
+        const Offset(0, 20),
+        Paint()
+          ..strokeWidth = 2
+          ..color = const Color(0xFFECE4D0));
+    canvas.restore();
+  }
+
+  @override
+  bool? hitTest(Offset position) {
+    if (_size == null) return false;
+    final pivot = _armPivot(_size!);
+    final tip = _armTip(_size!, lowered, progress);
+    final vector = tip - pivot;
+    final projection = ((position - pivot).dx * vector.dx +
+            (position - pivot).dy * vector.dy) /
+        vector.distanceSquared;
+    return (position - (pivot + vector * projection.clamp(0.0, 1.0))).distance <
+        24;
+  }
+
+  @override
+  bool shouldRepaint(_TonearmPainter oldDelegate) =>
+      oldDelegate.lowered != lowered || oldDelegate.progress != progress;
+}

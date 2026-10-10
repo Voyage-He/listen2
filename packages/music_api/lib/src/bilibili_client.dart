@@ -1,58 +1,136 @@
+import 'dart:convert';
+
 import 'package:hive/hive.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:requests/requests.dart';
 import 'package:http/http.dart';
 part './bilibili_model.dart';
 
 class BilibiliClient {
+  static const _cookieKey = 'bilibili_cookies';
+  static const _cookieVersion = 1;
+  static const _homepageHost = 'www.bilibili.com';
+  static const _apiHost = 'api.bilibili.com';
   bool hasCookie = false; // hasCookie的用处？
   Box box;
 
   BilibiliClient(this.box);
 
   Future<void> init() async {
-    var cookies = await getCookiesFromLocal();
+    hasCookie = false;
+    final cookies = await getCookiesFromLocal();
     if (cookies != null) {
       print('cookies from -local');
       await setCookie(cookies);
+      hasCookie = true;
     } else {
-      var cookies = await getCookieFromNet();
-      print('cookies from net');
-      await setCookie(cookies);
-      saveCookiesToLocal(cookies);
+      await refreshCookies();
     }
+  }
+
+  Future<void> refreshCookies() async {
+    hasCookie = false;
+    await box.delete(_cookieKey);
+    await Requests.clearStoredCookies(_homepageHost);
+    await Requests.clearStoredCookies(_apiHost);
+    final cookies = await getCookieFromNet();
+    if (cookies.isEmpty) {
+      throw StateError('Bilibili did not return any cookies');
+    }
+    await saveCookiesToLocal(cookies);
+    final persisted = await getCookiesFromLocal();
+    if (persisted == null) throw StateError('Bilibili cookies are not valid');
+    await setCookie(persisted);
     hasCookie = true;
+    print('cookies refreshed from net');
   }
 
   Future<CookieJar?> getCookiesFromLocal() async {
-    final String? cookiesStr = box.get('bilibili_cookies');
-
-    if (cookiesStr == null) return null;
-
-    var cookies = CookieJar();
-
-    var cookieStrList = cookiesStr.split('?');
-    var cookiesMap = <String, Cookie>{};
-    for (var cookieStr in cookieStrList) {
-      var cookieList = cookieStr.split('!');
-      cookiesMap[cookieList[0]] = Cookie(cookieList[0], cookieList[1]);
+    final stored = box.get(_cookieKey);
+    if (stored == null) return null;
+    try {
+      if (stored is! String) {
+        throw const FormatException('Invalid cookie cache');
+      }
+      final data = jsonDecode(stored);
+      if (data is! Map ||
+          data['version'] != _cookieVersion ||
+          data['cookies'] is! List ||
+          (data['cookies'] as List).isEmpty) {
+        throw const FormatException('Invalid cookie cache');
+      }
+      final cookies = CookieJar();
+      final now = DateTime.now().toUtc();
+      for (final entry in data['cookies']) {
+        if (entry is! Map ||
+            entry['name'] is! String ||
+            entry['value'] is! String ||
+            !_validCookie(entry['name'], entry['value'])) {
+          throw const FormatException('Invalid cookie entry');
+        }
+        final cookie = Cookie(entry['name'], entry['value']);
+        final expiresAt = entry['expiresAt'];
+        if (expiresAt != null) {
+          if (expiresAt is! int || expiresAt.abs() > 8640000000000000) {
+            throw const FormatException('Invalid expiry');
+          }
+          final expiry =
+              DateTime.fromMillisecondsSinceEpoch(expiresAt, isUtc: true);
+          if (!expiry.isAfter(now)) {
+            throw const FormatException('Expired cookie');
+          }
+          cookie['expires'] = formatHttpDate(expiry);
+        }
+        cookies[cookie.name] = cookie;
+      }
+      return cookies;
+    } on FormatException {
+      // Old caches stored Cookie.toString(), which includes "Set-Cookie:".
+      // Discard them instead of restoring malformed values into request headers.
+      await box.delete(_cookieKey);
+      return null;
     }
-
-    cookies.addAll(cookiesMap);
-    return cookies;
   }
 
   Future<void> saveCookiesToLocal(CookieJar cookies) async {
-    var str = '';
-    cookies.forEach((key, value) {
-      if (str.isEmpty) {
-        str = '$key!$value';
-      } else {
-        str = '$str?$key!$value';
+    if (cookies.isEmpty) throw StateError('Cannot persist empty cookies');
+    final now = DateTime.now().toUtc();
+    final entries = <Map<String, Object?>>[];
+    for (final cookie in cookies.values) {
+      if (!_validCookie(cookie.name, cookie.value)) {
+        throw const FormatException('Invalid cookie value');
       }
-    });
-
-    await box.put('bilibili_cookies', str);
+      DateTime? expiry;
+      final maxAge = cookie['max-age'];
+      if (maxAge != null) {
+        final seconds = int.tryParse(maxAge);
+        if (seconds == null) {
+          throw const FormatException('Invalid cookie max-age');
+        }
+        expiry = now.add(Duration(seconds: seconds));
+      } else if (cookie['expires'] != null) {
+        expiry = parseHttpDate(cookie['expires']!);
+      }
+      if (expiry != null && !expiry.isAfter(now)) continue;
+      entries.add({
+        'name': cookie.name,
+        'value': cookie.value,
+        'expiresAt': expiry?.millisecondsSinceEpoch,
+      });
+    }
+    if (entries.isEmpty) throw StateError('Cannot persist expired cookies');
+    await box.put(
+        _cookieKey,
+        jsonEncode({
+          'version': _cookieVersion,
+          'cookies': entries,
+        }));
   }
+
+  static bool _validCookie(String name, String value) =>
+      RegExp(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$").hasMatch(name) &&
+      !value.toLowerCase().contains('set-cookie:') &&
+      !RegExp(r'[\x00-\x20\x7f;]').hasMatch(value);
 
   Future<void> setCookie(CookieJar cookies) async {
     await Requests.setStoredCookies(
@@ -60,12 +138,17 @@ class BilibiliClient {
   }
 
   Future<CookieJar> getCookieFromNet() async {
-    await Requests.get("https://www.bilibili.com", headers: {
-      "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 Edg/107.0.1418.56"
-    });
-    return await Requests.getStoredCookies(
-        Requests.getHostname("https://www.bilibili.com"));
+    final response = await Requests.get("https://www.bilibili.com",
+        persistCookies: false,
+        headers: {
+          "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 Edg/107.0.1418.56"
+        });
+    if (!response.success) {
+      throw StateError(
+          'Bilibili cookie refresh failed: HTTP ${response.statusCode}');
+    }
+    return Requests.extractResponseCookies(response.headers);
   }
 
   Future<List<BilibiliVideoModel>> search(String keyword) async {

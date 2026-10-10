@@ -1,44 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:listen2/src/widget/app_style.dart';
 
-class Button extends StatefulWidget {
-  Button({super.key, required this.onTap, this.child, this.circle = false, this.disabled = false, this.color = Colors.blue});
-
+class Button extends StatelessWidget {
+  const Button(
+      {super.key,
+      required this.onTap,
+      this.child,
+      this.circle = false,
+      this.disabled = false,
+      this.color = AppStyle.accent});
   final GestureTapCallback onTap;
   final Widget? child;
-  bool taped = false;
-  bool circle;
-  bool disabled;
-  Color color;
+  final bool circle;
+  final bool disabled;
+  final Color color;
 
   @override
-  State<Button> createState() => _ButtonState();
-}
-
-class _ButtonState extends State<Button> {
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-        onTap: widget.disabled ? null : widget.onTap,
-        onTapDown: (_) => setState(() {
-              widget.taped = true;
-            }),
-        onTapUp: (_) => setState(() {
-              widget.taped = false;
-            }),
-        onTapCancel: () => setState(() {
-              widget.taped = false;
-            }),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 100),
-          padding: widget.circle
-              ? (widget.taped
-                  ? const EdgeInsets.all(10)
-                  : const EdgeInsets.all(11))
-              : EdgeInsets.all(5),
-          decoration: BoxDecoration(
-              shape: widget.circle ? BoxShape.circle : BoxShape.rectangle,
-              color: widget.disabled ? Colors.grey : widget.color),
-          child: widget.child,
-        ));
-  }
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.all(4),
+        child: FilledButton(
+          onPressed: disabled ? null : onTap,
+          style: FilledButton.styleFrom(
+              backgroundColor: color,
+              minimumSize: const Size(48, 48),
+              shape: circle
+                  ? const CircleBorder()
+                  : RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14))),
+          child: child ?? const SizedBox.shrink(),
+        ),
+      );
 }

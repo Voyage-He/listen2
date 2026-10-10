@@ -25,7 +25,8 @@ class CurrentPlaylistState {
   }
 
   CurrentPlaylistState insertTrackId(String trackId) {
-    return CurrentPlaylistState(index: index, playlist: playlist..insert(index + 1, trackId));
+    return CurrentPlaylistState(
+        index: index, playlist: playlist..insert(index + 1, trackId));
   }
 }
 
@@ -35,8 +36,11 @@ class CurrentPlaylistNotifier extends _$CurrentPlaylistNotifier {
 
   @override
   CurrentPlaylistState build() {
-    final playerBackState = ref.watch(playerStateNotifierProvider.select((state) => state.state));
-    final currentPlaylistState = ref.storage.custom["current_playlist_state"]!.get('default', defaultValue: const CurrentPlaylistState(index: 0, playlist: []));
+    final playerBackState =
+        ref.watch(playerStateNotifierProvider.select((state) => state.state));
+    final currentPlaylistState = ref.storage.custom["current_playlist_state"]!
+        .get('default',
+            defaultValue: const CurrentPlaylistState(index: 0, playlist: []));
     debugPrint("current play list provider build");
     debugPrint('playerBackState: $playerBackState');
     if (playerBackState == ap.PlayerState.completed) {
@@ -58,22 +62,29 @@ class CurrentPlaylistNotifier extends _$CurrentPlaylistNotifier {
     // TODO fix: this load() cause play call twice when play next automatically
   }
 
-  void play(String trackId, List<String> playlistTrackIds) {
-    final newPlaylist =
-        CurrentPlaylistState(index: playlistTrackIds.indexOf(trackId), playlist: playlistTrackIds);
-    ref.storage.custom["current_playlist_state"]!.put('default', newPlaylist);
-    load();
+  Future<void> play(String trackId, List<String> playlistTrackIds,
+      {bool autoplay = true}) async {
+    final index = playlistTrackIds.indexOf(trackId);
+    if (index < 0) return;
+    final next =
+        CurrentPlaylistState(index: index, playlist: List.of(playlistTrackIds));
+    await ref.storage.custom["current_playlist_state"]!.put('default', next);
+    state = next;
+    await ref
+        .read(playerStateNotifierProvider.notifier)
+        .playTrackById(trackId, autoplay: autoplay);
   }
 
   void setNext(String trackId) {
-    ref.storage.custom["current_playlist_state"]!.put('default', state.insertTrackId(trackId));
+    ref.storage.custom["current_playlist_state"]!
+        .put('default', state.insertTrackId(trackId));
     load();
   }
 
   CurrentPlaylistState load() {
-    final currentPlaylistState = ref.storage.custom["current_playlist_state"]!.get(
-        'default',
-        defaultValue: const CurrentPlaylistState(index: 0, playlist: []));
+    final currentPlaylistState = ref.storage.custom["current_playlist_state"]!
+        .get('default',
+            defaultValue: const CurrentPlaylistState(index: 0, playlist: []));
 
     if (currentPlaylistState.playlist.isEmpty) return currentPlaylistState;
     if (currentPlaylistState.currentTrackId ==
@@ -84,7 +95,7 @@ class CurrentPlaylistNotifier extends _$CurrentPlaylistNotifier {
     ref
         .read(playerStateNotifierProvider.notifier)
         .playTrackById(currentPlaylistState.currentTrackId);
-        debugPrint('load call time');
+    debugPrint('load call time');
     return currentPlaylistState;
   }
 }

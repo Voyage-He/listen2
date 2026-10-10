@@ -43,8 +43,7 @@ class AudioHandler extends BaseAudioHandler {
 
   Future<void> initialize() async {
     await player.setAudioContext(const ap.AudioContext(
-      android:
-          ap.AudioContextAndroid(audioFocus: ap.AndroidAudioFocus.none),
+      android: ap.AudioContextAndroid(audioFocus: ap.AndroidAudioFocus.none),
       iOS: ap.AudioContextIOS(category: ap.AVAudioSessionCategory.playback),
     ));
     // Configure after the player so plugin defaults cannot replace music mode.
@@ -113,6 +112,16 @@ class AudioHandler extends BaseAudioHandler {
     if (await session.setActive(true)) await player.resume();
   }
 
+  /// Mount a record without spinning it when the needle is raised.
+  Future<void> load(ap.Source source, {bool autoplay = true}) async {
+    await player.setSource(source);
+    if (autoplay) {
+      await play();
+    } else {
+      await pause();
+    }
+  }
+
   @override
   Future<void> pause() async {
     _resumeAfterInterruption = false;
@@ -170,7 +179,7 @@ class PlayerStateNotifier extends _$PlayerStateNotifier {
     return PlayerState();
   }
 
-  Future<void> playTrack(Track track) async {
+  Future<void> playTrack(Track track, {bool autoplay = true}) async {
     final request = ++_playRequest;
     final bytes = await ref.read(trackBytesProvider(track).future);
     if (request != _playRequest) return;
@@ -186,8 +195,7 @@ class PlayerStateNotifier extends _$PlayerStateNotifier {
     }
     if (request != _playRequest) return;
     await _audioHandler.player.release();
-    final session = await AudioSession.instance;
-    if (!(await session.setActive(true)) || request != _playRequest) return;
+    if (request != _playRequest) return;
 
     state = PlayerState(track: track);
     _audioHandler.mediaItem.add(MediaItem(
@@ -201,14 +209,14 @@ class PlayerStateNotifier extends _$PlayerStateNotifier {
       processingState: AudioProcessingState.loading,
     ));
     try {
-      await _audioHandler.player.play(source);
+      await _audioHandler.load(source, autoplay: autoplay);
     } catch (_) {
       await _audioHandler.stop();
       rethrow;
     }
   }
 
-  Future<void> playTrackById(String trackId) async {
+  Future<void> playTrackById(String trackId, {bool autoplay = true}) async {
     if (trackId.isEmpty) {
       _playRequest++;
       await _audioHandler.stop();
@@ -217,12 +225,15 @@ class PlayerStateNotifier extends _$PlayerStateNotifier {
       return;
     }
     final track = await ref.read(trackProvider(trackId).future);
-    await playTrack(track);
+    await playTrack(track, autoplay: autoplay);
   }
 
   Future<void> pause() => _audioHandler.pause();
   Future<void> resume() => _audioHandler.play();
-  Future<void> seek(Duration position) => _audioHandler.seek(position);
+  Future<void> seek(Duration position) async {
+    await _audioHandler.seek(position);
+    state = state.copyWith(now: position);
+  }
 }
 
 @Riverpod(keepAlive: true)

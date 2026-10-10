@@ -1,10 +1,9 @@
-import 'package:flutter/widgets.dart';
-import 'package:flutter/material.dart' show Theme, Colors, Divider, Icons;
+import 'package:flutter/material.dart';
+import 'package:listen2/src/widget/app_style.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/global/current_playlist.dart';
 import 'package:listen2/src/provider/repo/playlist_names.dart';
 import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
-import 'package:listen2/src/provider/global/player.dart';
 import 'package:listen2/src/provider/repo/track.dart';
 import 'package:listen2/src/widget/button/button.dart';
 import 'package:listen2/src/widget/input/input.dart';
@@ -16,8 +15,7 @@ part 'playlist.g.dart';
 @riverpod
 Future<List<Track>> playlistTracks(
     PlaylistTracksRef ref, String playlistName) async {
-  List<String> ids =
-      ref.watch(playlistIdsNotifierProvider(playlistName));
+  List<String> ids = ref.watch(playlistIdsNotifierProvider(playlistName));
 
   List<Future<Track>> futures = [];
 
@@ -54,7 +52,6 @@ class AddPlaylistNameNotifier extends _$AddPlaylistNameNotifier {
   }
 
   update(String value) {
-    print('update:$value');
     state = value;
   }
 }
@@ -72,51 +69,52 @@ class PlaylistPage extends ConsumerWidget {
     var tracks = ref.watch(sortedListProvider(playlistName));
     final reverse = ref.watch(reverseProvider);
 
-    var main = tracks.when(
-        data: (value) {
-          return Column(
-            children: [
-              Row(
-                children: [
-                  Button(
-                    onTap: () {
-                      Navigator.of(context).pop();
-                    },
-                    child: const Text('return')
-                  ),
-                  Button(
-                    onTap: () {
-                      ref.read(reverseProvider.notifier).state = !ref.read(reverseProvider);
-                    },
-                    child: const Text('reverse'),
-                    color: reverse ? Colors.grey : Colors.blue,
-                  ),
-                ],
-              ),
-              Expanded(
-                  child: ListView.separated(
-                      shrinkWrap: true,
-                      separatorBuilder: (context, index) => const Divider(
-                            color: Colors.black26,
-                            height: 1,
-                          ),
-                      itemCount: value.length,
-                      itemBuilder: (context, index) {
-                        return _trackItem(index, value[index], context, ref);
-                      })),
-            ],
-          );
-        },
-        error: (err, traceback) {
-          print(err);
-          print(traceback);
-          return const Text('err');
-        },
-        loading: () => const Text('loading'));
+    final main = Column(children: [
+      PageHeading(playlistName == 'favorite' ? '我喜欢的音乐' : playlistName,
+          action: IconButton(
+              tooltip: reverse ? '恢复顺序' : '倒序排列',
+              color: reverse ? AppStyle.accent : AppStyle.muted,
+              onPressed: () =>
+                  ref.read(reverseProvider.notifier).state = !reverse,
+              icon: const Icon(Icons.swap_vert_rounded))),
+      Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          child: Row(children: [
+            const Icon(Icons.library_music_rounded,
+                color: AppStyle.accent, size: 18),
+            const SizedBox(width: 8),
+            Text(
+                '${ref.watch(playlistIdsNotifierProvider(playlistName)).length} 首歌曲',
+                style: Theme.of(context).textTheme.bodyMedium),
+          ])),
+      Expanded(
+          child: tracks.when(
+        data: (value) => value.isEmpty
+            ? const EmptyState(
+                icon: Icons.queue_music_rounded,
+                title: '歌单还是空的',
+                message: '搜索喜欢的音乐，将它们收藏到这里')
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                itemCount: value.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                itemBuilder: (context, index) =>
+                    _trackItem(index, value[index], context, ref)),
+        error: (_, __) => EmptyState(
+            icon: Icons.wifi_off_rounded,
+            title: '歌曲加载失败',
+            message: '请检查网络后重试',
+            action: TextButton(
+                onPressed: () =>
+                    ref.invalidate(playlistTracksProvider(playlistName)),
+                child: const Text('重试'))),
+        loading: () => const Center(child: CircularProgressIndicator()),
+      )),
+    ]);
 
     final track = ref.watch(popupTrackProvider);
     return Stack(children: [
-      Container(color: Colors.white, child: main),
+      Material(color: AppStyle.background, child: main),
       Popup(
         track == null
             ? Container()
@@ -131,14 +129,14 @@ class PlaylistPage extends ConsumerWidget {
                             .toggle(track.bvid);
                         _actionPopupKey.currentState!.toggle();
                       },
-                      child: Text('取消收藏'),
+                      child: Text(playlistName == 'favorite' ? '取消收藏' : '移出歌单'),
                     ),
                     Button(
                       onTap: () {
                         _actionPopupKey.currentState!.toggle();
                         _playlistSettingPopupKey.currentState!.toggle();
                       },
-                      child: Text('加入歌单'),
+                      child: const Text('加入歌单'),
                     ),
                   ],
                 ),
@@ -151,52 +149,52 @@ class PlaylistPage extends ConsumerWidget {
   }
 
   Widget _trackItem(
-      int index, Track track, BuildContext context, WidgetRef ref) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () {
-        ref.read(currentPlaylistNotifierProvider.notifier).play(track.bvid, ref.read(playlistIdsNotifierProvider(playlistName)));
-      },
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Row(
-          children: [
-            Container(
-                margin: const EdgeInsets.symmetric(horizontal: 10),
-                child: Text((index + 1).toString())),
-            Expanded(
-              child: _trackInfo(context, track),
-            ),
-            GestureDetector(
-              onTap: () {
-                // print(track.bvid);
-                // ref
-                //     .read(favoriteIdsNotifierProvider.notifier)
-                //     .toggle(track.bvid);
-                // ref.read(popupTrackProvider.s);
-                ref.read(popupTrackProvider.notifier).state = track;
-                _actionPopupKey.currentState!.toggle();
-              },
-              child: const Icon(
-                Icons.list,
-                size: 40,
-              ),
-            ),
-          ],
+          int index, Track track, BuildContext context, WidgetRef ref) =>
+      Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => ref.read(currentPlaylistNotifierProvider.notifier).play(
+              track.bvid, ref.read(playlistIdsNotifierProvider(playlistName))),
+          child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+              child: Row(children: [
+                SizedBox(
+                    width: 32,
+                    child: Text('${index + 1}'.padLeft(2, '0'),
+                        style: const TextStyle(
+                            color: AppStyle.muted, fontSize: 13))),
+                const SizedBox(width: 8),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(track.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: AppStyle.ink)),
+                      const SizedBox(height: 6),
+                      Text(track.singer,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12, color: AppStyle.muted)),
+                    ])),
+                IconButton(
+                    tooltip: '歌曲操作',
+                    icon: const Icon(Icons.more_horiz_rounded,
+                        color: AppStyle.muted),
+                    onPressed: () {
+                      ref.read(popupTrackProvider.notifier).state = track;
+                      _actionPopupKey.currentState!.toggle();
+                    }),
+              ])),
         ),
-      ),
-    );
-  }
-
-  Widget _trackInfo(BuildContext context, Track? track) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(track?.title ?? '', style: Theme.of(context).textTheme.bodyLarge),
-        Text(track?.singer ?? '', style: Theme.of(context).textTheme.bodyMedium)
-      ],
-    );
-  }
+      );
 
   Widget _playlistSettingPopup(WidgetRef ref, Track? track) {
     final playlistNames = ref.watch(playlistNamesProvider);
@@ -210,9 +208,12 @@ class PlaylistPage extends ConsumerWidget {
                   Button(
                     onTap: () {
                       _playlistSettingPopupKey.currentState!.toggle();
+                      ref
+                          .read(addPlaylistNameNotifierProvider.notifier)
+                          .update('');
                       _addPlaylistPopupKey.currentState!.toggle();
                     },
-                    child: Text('新建歌单'),
+                    child: const Text('新建歌单'),
                   ),
                   if (playlistNames.valueOrNull?.isNotEmpty ?? false)
                     Expanded(
@@ -223,18 +224,23 @@ class PlaylistPage extends ConsumerWidget {
                           final name = playlistNames.valueOrNull![index];
                           final isCollected = ref
                               .watch(playlistIdsNotifierProvider(name))
-                              .contains(track!.bvid);
+                              .contains(track.bvid);
                           return Button(
                             onTap: () {
                               ref
-                                  .read(
-                                      playlistIdsNotifierProvider(name).notifier)
-                                  .toggle(track!.bvid);
+                                  .read(playlistIdsNotifierProvider(name)
+                                      .notifier)
+                                  .toggle(track.bvid);
                             },
-                            color: isCollected ? Colors.grey : Colors.blue,
+                            color:
+                                isCollected ? AppStyle.muted : AppStyle.accent,
                             child: Row(
                               children: [
-                                Text(playlistNames.valueOrNull![index]),
+                                Expanded(
+                                    child: Text(
+                                        name == 'favorite' ? '我喜欢的音乐' : name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis)),
                                 Icon(isCollected ? Icons.check : Icons.add),
                               ],
                             ),
@@ -261,28 +267,36 @@ class PlaylistPage extends ConsumerWidget {
                       ref
                           .read(addPlaylistNameNotifierProvider.notifier)
                           .update(text);
-                      debugPrint(
-                          'a' + ref.read(addPlaylistNameNotifierProvider));
                     },
                     onDone: () {
-                      final name = ref.read(addPlaylistNameNotifierProvider);
+                      final name =
+                          ref.read(addPlaylistNameNotifierProvider).trim();
+                      if (name.isEmpty) return;
                       ref.read(playlistNamesProvider.notifier).add(name);
                       ref
                           .read(playlistIdsNotifierProvider(name).notifier)
-                          .add(track!.bvid);
+                          .add(track.bvid);
+                      ref
+                          .read(addPlaylistNameNotifierProvider.notifier)
+                          .update('');
                       _addPlaylistPopupKey.currentState!.toggle();
                     },
                   ),
                   Button(
                     onTap: () {
-                      final name = ref.read(addPlaylistNameNotifierProvider);
+                      final name =
+                          ref.read(addPlaylistNameNotifierProvider).trim();
+                      if (name.isEmpty) return;
                       ref.read(playlistNamesProvider.notifier).add(name);
                       ref
                           .read(playlistIdsNotifierProvider(name).notifier)
-                          .add(track!.bvid);
+                          .add(track.bvid);
+                      ref
+                          .read(addPlaylistNameNotifierProvider.notifier)
+                          .update('');
                       _addPlaylistPopupKey.currentState!.toggle();
                     },
-                    child: Text('确认'),
+                    child: const Text('确认'),
                   ),
                 ],
               ),

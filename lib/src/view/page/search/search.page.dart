@@ -6,6 +6,8 @@ import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
 import 'package:listen2/src/provider/repo/track.dart';
 
 import 'package:listen2/src/widget/input/input.dart';
+import 'package:listen2/src/widget/app_style.dart';
+import 'package:listen2/src/widget/track_cover.widget.dart';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -19,7 +21,6 @@ class KeywordNotifier extends _$KeywordNotifier {
   }
 
   update(String value) {
-    print('update:$value');
     state = value;
   }
 }
@@ -71,122 +72,111 @@ class Search extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.watch(keywordNotifierProvider);
-    return Container(
-      decoration: const BoxDecoration(color: Colors.white),
-      child: Column(
-          children: [const Header(), Expanded(child: _searchResult(ref))]),
-    );
-  }
-
-  Widget _searchResult(WidgetRef ref) {
-    var tracksWithIsFavoraite = ref.watch(tracksAndIsFaviriteProvider);
-    return tracksWithIsFavoraite.when(
-        data: (value) {
-          var tracks = value['tracks'];
-          var isFavorites = value['isFavorite'];
-          return ListView.separated(
-              separatorBuilder: (context, index) => const Divider(height: 0),
-              itemCount: tracks.length,
-              itemBuilder: (context, i) {
-                return _searchItem(ref, tracks[i], isFavorites[i]);
-              });
-        },
-        error: (error, _) {
-          debugPrint('Search failed: $error');
-          return const Text('搜索失败，请稍后重试');
-        },
-        loading: () => const Text('搜索中…'));
-  }
-
-  Widget _searchItem(WidgetRef ref, Track track, bool isFavorite) {
-    return GestureDetector(
-        onTap: () =>
-            ref.read(playerStateNotifierProvider.notifier).playTrack(track),
-        child: Container(
-            padding: const EdgeInsets.symmetric(),
-            child: Row(children: [
-              // Image.network(
-              //   track.pictureUrl,
-              //   width: 115,
-              //   height: 115 / 240 * 135,
-              //   fit: BoxFit.fill,
-              // ),
-              Expanded(
-                  child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                      track.title.length < 30
-                          ? track.title
-                          : '${track.title.substring(0, 30)}...',
-                      style: const TextStyle(
-                          fontSize: 15, overflow: TextOverflow.clip)),
-                  Text(
-                    track.singer,
-                    style: const TextStyle(fontSize: 13, color: Colors.grey),
-                  )
-                ],
-              )),
-              Container(
-                  margin: const EdgeInsets.only(right: 20),
-                  child: GestureDetector(
-                      onTap: () => ref
-                          .read(
-                              playlistIdsNotifierProvider('favorite').notifier)
-                          .toggle(track.bvid),
-                      child: isFavorite
-                          ? const Icon(
-                              Icons.favorite_outlined,
-                              color: Colors.redAccent,
-                            )
-                          : const Icon(Icons.favorite_border))),
-            ])));
-  }
-}
-
-class Header extends ConsumerWidget {
-  const Header({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Container(
-        padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 20.0),
-        decoration: BoxDecoration(
-            color: Color.fromARGB(255, 228, 228, 228),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  offset: Offset(0, 7),
-                  blurRadius: 10.0,
-                  spreadRadius: -5)
-            ]),
-        child: Row(children: [
-          GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              child: const Icon(Icons.search, size: 30)),
-          Expanded(child: _input(ref)),
-          GestureDetector(
-              onTap: () => ref.read(searchResultProvider.notifier).search(),
-              child: const Icon(Icons.search, size: 30)),
+    final keyword = ref.watch(keywordNotifierProvider);
+    final results = ref.watch(searchResultProvider);
+    return Material(
+        color: AppStyle.background,
+        child: Column(children: [
+          const PageHeading('发现音乐'),
+          Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+              child: Row(children: [
+                Expanded(
+                    child: Input(
+                        hintText: '搜索歌曲、歌手或视频',
+                        initialValue: keyword,
+                        textInputAction: TextInputAction.search,
+                        onChange: (text) => ref
+                            .read(keywordNotifierProvider.notifier)
+                            .update(text),
+                        onDone: () =>
+                            ref.read(searchResultProvider.notifier).search())),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                    tooltip: '搜索',
+                    onPressed: () {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      ref.read(searchResultProvider.notifier).search();
+                    },
+                    icon: const Icon(Icons.search_rounded)),
+              ])),
+          Expanded(
+              child: results.when(
+            skipLoadingOnRefresh: false,
+            data: (tracks) => tracks.isEmpty
+                ? EmptyState(
+                    icon: Icons.headphones_rounded,
+                    title: keyword.trim().isEmpty ? '下一首心动，从这里开始' : '暂时没有搜索结果',
+                    message: keyword.trim().isEmpty
+                        ? '搜索喜欢的歌曲或歌手，发现更多好音乐'
+                        : '试试其他歌曲名称或关键词')
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                    itemCount: tracks.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) =>
+                        _searchItem(ref, tracks[index])),
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, __) => EmptyState(
+                icon: Icons.wifi_off_rounded,
+                title: '搜索失败',
+                message: '请检查网络连接后重试',
+                action: FilledButton.tonal(
+                    onPressed: () =>
+                        ref.read(searchResultProvider.notifier).search(),
+                    child: const Text('重新搜索'))),
+          )),
         ]));
   }
 
-  Widget _input(WidgetRef ref) {
-    // ref.watch(keywordNotifierProvider);
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 20),
-      decoration: const BoxDecoration(
-          color: Colors.black12,
-          borderRadius: BorderRadius.all(Radius.circular(10))),
-      child: Input(
-        onChange: (text) {
-          print('change:' + text);
-          ref.read(keywordNotifierProvider.notifier).update(text);
-        },
-        onDone: () => {ref.read(searchResultProvider.notifier).search()},
-      ),
-    );
+  Widget _searchItem(WidgetRef ref, Track track) {
+    final isFavorite =
+        ref.watch(playlistIdsNotifierProvider('favorite')).contains(track.bvid);
+    return Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () =>
+              ref.read(playerStateNotifierProvider.notifier).playTrack(track),
+          child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(children: [
+                ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: TrackCover(track,
+                        width: 56, height: 56, fit: BoxFit.cover)),
+                const SizedBox(width: 12),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(track.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppStyle.ink)),
+                      const SizedBox(height: 6),
+                      Text(track.singer,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12, color: AppStyle.muted)),
+                    ])),
+                IconButton(
+                    tooltip: isFavorite ? '取消收藏' : '收藏',
+                    onPressed: () => ref
+                        .read(playlistIdsNotifierProvider('favorite').notifier)
+                        .toggle(track.bvid),
+                    icon: Icon(
+                        isFavorite
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                        color: isFavorite ? AppStyle.accent : AppStyle.muted,
+                        size: 22)),
+              ])),
+        ));
   }
 }

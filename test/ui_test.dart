@@ -1,0 +1,147 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:listen2/src/provider/global/player.dart' as player;
+import 'package:listen2/src/provider/repo/playlist_names.dart';
+import 'package:listen2/src/provider/repo/track.dart';
+import 'package:listen2/src/provider/global/current_playlist.dart';
+import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
+import 'package:listen2/src/view/page/home/home.page.dart';
+import 'package:listen2/src/view/page/player/player.page.dart';
+import 'package:listen2/src/view/page/playlist/playlist.dart';
+import 'package:listen2/src/widget/app_style.dart';
+import 'package:listen2/src/widget/progress_bar.dart';
+
+class _Names extends PlaylistNames {
+  @override
+  Future<List<String>> build() async => ['favorite', '一个很长很长的歌单名称，用来验证小屏幕布局'];
+}
+
+class _Ids extends PlaylistIdsNotifier {
+  @override
+  List<String> build(String playlistName) => [];
+}
+
+class _Player extends player.PlayerStateNotifier {
+  @override
+  player.PlayerState build() => player.PlayerState();
+}
+
+final _singleTrack = Track('one', 'Test record', 'Artist', '');
+
+class _SingleTrackPlayer extends player.PlayerStateNotifier {
+  @override
+  player.PlayerState build() => player.PlayerState(track: _singleTrack);
+}
+
+class _SingleTrackQueue extends CurrentPlaylistNotifier {
+  @override
+  CurrentPlaylistState build() =>
+      const CurrentPlaylistState(index: 0, playlist: ['one']);
+}
+
+void main() {
+  Future<void> pumpPage(WidgetTester tester, Widget page) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(ProviderScope(overrides: [
+      playlistNamesProvider.overrideWith(_Names.new),
+      playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
+      playlistIdsNotifierProvider('一个很长很长的歌单名称，用来验证小屏幕布局')
+          .overrideWith(_Ids.new),
+      player.playerStateNotifierProvider.overrideWith(_Player.new),
+    ], child: MaterialApp(theme: AppStyle.theme, home: Scaffold(body: page))));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('home opens search and returns on a narrow screen',
+      (tester) async {
+    await pumpPage(tester, const Home());
+    expect(find.text('我喜欢的音乐'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('搜索歌曲、歌手或视频'));
+    await tester.pumpAndSettle();
+    expect(find.text('发现音乐'), findsOneWidget);
+    expect(find.text('下一首心动，从这里开始'), findsOneWidget);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.text('我的唱片'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('empty playlist keeps its back navigation available',
+      (tester) async {
+    await pumpPage(tester, PlaylistPage(playlistName: 'favorite'));
+    expect(find.text('歌单还是空的'), findsOneWidget);
+    expect(find.byTooltip('返回'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('player fits narrow screens with unknown duration',
+      (tester) async {
+    await pumpPage(tester, const Player());
+    expect(find.text('0:00'), findsNWidgets(2));
+    expect(find.byType(Slider), findsNothing);
+    expect(find.byKey(const ValueKey('tonearm')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('turntable instructions fit narrow screens', (tester) async {
+    await pumpPage(tester, const Player());
+    await tester.tap(find.byTooltip('操作说明'));
+    await tester.pumpAndSettle();
+    expect(find.text('像使用唱机一样聆听'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('queue boundaries show feedback on the matching record side',
+      (tester) async {
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          player.playerStateNotifierProvider
+              .overrideWith(_SingleTrackPlayer.new),
+          currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),
+          playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
+          trackCoverProvider(_singleTrack)
+              .overrideWith((ref) async => throw StateError('no cover')),
+        ],
+        child: MaterialApp(
+            theme: AppStyle.theme, home: const Scaffold(body: Player()))));
+    await tester.pumpAndSettle();
+    final record = find.byKey(const ValueKey('vinyl-record'));
+    final rect = tester.getRect(record);
+    await tester.drag(record, const Offset(90, 0));
+    await tester.pump(const Duration(milliseconds: 300));
+    final previous = find.byKey(const ValueKey('no-previous-track'));
+    expect(previous, findsOneWidget);
+    expect(find.text('没有上一曲'), findsNothing);
+    expect(tester.getCenter(previous).dx, lessThan(rect.center.dx));
+    await tester.drag(record, const Offset(-90, 0));
+    await tester.pump(const Duration(milliseconds: 300));
+    final next = find.byKey(const ValueKey('no-next-track'));
+    expect(find.text('没有下一曲'), findsNothing);
+    expect(tester.getCenter(next).dx, greaterThan(rect.center.dx));
+    expect(previous, findsNothing);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(next, findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('seek bar clamps invalid progress and supports tapping',
+      (tester) async {
+    double? sought;
+    await pumpPage(
+        tester,
+        Center(
+            child: ProgressBar(
+                now: double.nan, onSeek: (value) async => sought = value)));
+    expect(tester.widget<Slider>(find.byType(Slider)).value, 0);
+    await tester.tapAt(tester.getCenter(find.byType(Slider)));
+    await tester.pumpAndSettle();
+    expect(sought, closeTo(0.5, 0.05));
+    expect(tester.takeException(), isNull);
+  });
+}

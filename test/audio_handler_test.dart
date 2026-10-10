@@ -74,6 +74,18 @@ void main() {
         handler.playbackState.value.processingState, AudioProcessingState.idle);
   });
 
+  test('mounting a record with the needle raised never starts audio', () async {
+    await handler.load(ap.DeviceFileSource('/cache/song.m4a'), autoplay: false);
+    expect(calls.where((call) => call.method == 'resume'), isEmpty);
+    expect(handler.player.source, isNotNull);
+    expect(handler.playbackState.value.playing, isFalse);
+    expect(handler.player.state, ap.PlayerState.paused);
+    await handler.play();
+    await Future<void>.delayed(Duration.zero);
+    expect(calls.last.method, 'resume');
+    expect(handler.playbackState.value.playing, isTrue);
+  });
+
   test('native duration and position reach lock screen metadata', () async {
     handler.mediaItem.add(const MediaItem(id: 'song', title: 'Song'));
     emit('audio.onDuration', 90000);

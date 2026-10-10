@@ -3,14 +3,16 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/repo/bilibili_playlists.dart';
 
-Future<String?> showAddBilibiliPlaylist(BuildContext context) =>
+Future<String?> showAddBilibiliPlaylist(BuildContext context,
+        {bool localOnly = false}) =>
     showDialog<String>(
         context: context,
         barrierDismissible: false,
-        builder: (_) => const _AddBilibiliPlaylist());
+        builder: (_) => _AddBilibiliPlaylist(localOnly: localOnly));
 
 class _AddBilibiliPlaylist extends ConsumerStatefulWidget {
-  const _AddBilibiliPlaylist();
+  const _AddBilibiliPlaylist({required this.localOnly});
+  final bool localOnly;
   @override
   ConsumerState<_AddBilibiliPlaylist> createState() =>
       _AddBilibiliPlaylistState();
@@ -48,7 +50,9 @@ class _AddBilibiliPlaylistState extends ConsumerState<_AddBilibiliPlaylist> {
         _busy = false;
         _error = error is FormatException
             ? error.message
-            : '添加失败，请检查收藏夹 ID、公开权限或网络后重试';
+            : _id.text.trim().isEmpty
+                ? '歌单创建失败，请重试'
+                : '添加失败，请检查收藏夹 ID、公开权限或网络后重试';
       });
     }
   }
@@ -57,24 +61,30 @@ class _AddBilibiliPlaylistState extends ConsumerState<_AddBilibiliPlaylist> {
   Widget build(BuildContext context) => PopScope(
       canPop: !_busy,
       child: AlertDialog(
-        title: const Text('添加 Bilibili 收藏夹'),
+        title: const Text('添加歌单'),
         content: SingleChildScrollView(
             child: Form(
                 key: _form,
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  TextFormField(
-                      controller: _id,
-                      enabled: !_busy,
-                      decoration: const InputDecoration(
-                          labelText: '收藏夹 ID', helperText: '收藏夹链接中的 fid'),
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      textInputAction: TextInputAction.next,
-                      validator: (value) =>
-                          RegExp(r'^[1-9][0-9]*$').hasMatch(value?.trim() ?? '')
-                              ? null
-                              : '请输入有效的收藏夹 ID'),
-                  const SizedBox(height: 16),
+                  if (!widget.localOnly) ...[
+                    TextFormField(
+                        controller: _id,
+                        enabled: !_busy,
+                        decoration: const InputDecoration(
+                            labelText: 'Bilibili 收藏夹 ID（选填）',
+                            helperText: '留空创建空白歌单；导入时填写链接中的 fid',
+                            helperMaxLines: 2),
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly
+                        ],
+                        textInputAction: TextInputAction.next,
+                        validator: (value) => (value?.trim().isEmpty ?? true) ||
+                                RegExp(r'^[1-9][0-9]*$').hasMatch(value!.trim())
+                            ? null
+                            : '请输入有效的收藏夹 ID'),
+                    const SizedBox(height: 16),
+                  ],
                   TextFormField(
                       controller: _name,
                       enabled: !_busy,

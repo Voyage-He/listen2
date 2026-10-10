@@ -112,6 +112,40 @@ void main() {
     subscription.close();
   });
 
+  test('blank ID creates an editable empty playlist without a network request',
+      () async {
+    await container.read(bilibiliPlaylistsProvider.notifier).add(' 日常 ', ' ');
+    expect(client.requests, 0);
+    expect(container.read(bilibiliPlaylistsProvider), isEmpty);
+    expect(
+        await container.read(playlistNamesProvider.future), ['favorite', '日常']);
+    expect(container.read(playlistIdsNotifierProvider('日常')), isEmpty);
+    await container
+        .read(playlistIdsNotifierProvider('日常').notifier)
+        .add('song');
+    await container
+        .read(playlistIdsNotifierProvider('日常').notifier)
+        .add('song');
+    expect(container.read(playlistIdsNotifierProvider('日常')), ['song']);
+    container.dispose();
+    container = createContainer();
+    await container.read(hiveStorageProvider.future);
+    expect(
+        await container.read(playlistNamesProvider.future), ['favorite', '日常']);
+    expect(container.read(playlistIdsNotifierProvider('日常')), ['song']);
+    expect(container.read(bilibiliPlaylistsProvider), isEmpty);
+  });
+
+  test('imported playlists reject local song additions', () async {
+    await container.read(bilibiliPlaylistsProvider.notifier).add('常听', '12345');
+    await expectLater(
+        container.read(playlistIdsNotifierProvider('常听').notifier).add('song'),
+        throwsStateError);
+    expect(
+        container.read(playlistIdsNotifierProvider('常听')), ['first', 'second']);
+    expect(storage.value.get('常听playlistTracksId'), ['first', 'second']);
+  });
+
   test('invalid and duplicate names cannot overwrite existing playlists',
       () async {
     final sources = container.read(bilibiliPlaylistsProvider.notifier);

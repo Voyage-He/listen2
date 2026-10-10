@@ -27,23 +27,26 @@ class BilibiliPlaylists extends Notifier<Map<String, String>> {
     name = name.trim();
     mediaId = mediaId.trim();
     if (name.isEmpty) throw const FormatException('请输入歌单名称');
-    if (!RegExp(r'^[1-9][0-9]*$').hasMatch(mediaId)) {
+    if (mediaId.isNotEmpty && !RegExp(r'^[1-9][0-9]*$').hasMatch(mediaId)) {
       throw const FormatException('请输入有效的收藏夹数字 ID');
     }
     final names = await ref.read(playlistNamesProvider.future);
     if (names.contains(name) || name == 'favorite' || name == '我喜欢的') {
       throw const FormatException('歌单名称已存在，请使用其他名称');
     }
-    final tracks = await fetchBilibiliPlaylist(ref, mediaId);
+    final tracks =
+        mediaId.isEmpty ? <Track>[] : await fetchBilibiliPlaylist(ref, mediaId);
     if ((await ref.read(playlistNamesProvider.future)).contains(name)) {
       throw const FormatException('歌单名称已存在，请使用其他名称');
     }
     await ref
         .read(playlistIdsNotifierProvider(name).notifier)
         .set(tracks.map((track) => track.bvid).toList());
-    final next = {...state, name: mediaId};
-    await ref.read(hiveStorageProvider).requireValue.value.put(_key, next);
-    state = next;
+    if (mediaId.isNotEmpty) {
+      final next = {...state, name: mediaId};
+      await ref.read(hiveStorageProvider).requireValue.value.put(_key, next);
+      state = next;
+    }
     await ref.read(playlistNamesProvider.notifier).add(name);
     await ref.read(playlistNamesProvider.notifier).load();
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:listen2/src/provider/repo/bilibili_playlists.dart';
 import 'package:listen2/src/ref_extensions.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -41,6 +42,9 @@ class PlaylistIdsNotifier extends _$PlaylistIdsNotifier {
   }
 
   add(String id) async {
+    if (ref.read(bilibiliPlaylistsProvider).containsKey(playlistName)) {
+      throw StateError('Bilibili 导入歌单不支持添加歌曲');
+    }
     var previousState = state;
     if (previousState.contains(id)) return;
 

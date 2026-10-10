@@ -7,6 +7,7 @@ import 'package:listen2/src/provider/global/player.dart';
 import 'package:listen2/src/provider/global/current_playlist.dart';
 import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
 import 'package:listen2/src/provider/repo/track.dart';
+import 'package:listen2/src/provider/repo/bilibili_playlists.dart';
 import 'package:listen2/src/view/page/search/search.page.dart';
 import 'package:listen2/src/widget/track_cover.widget.dart';
 import 'package:listen2/src/widget/vinyl_deck.dart';
@@ -197,13 +198,41 @@ class _PlayerState extends ConsumerState<Player> {
     );
   }
 
+  Future<void> _showSavePlaylists() async {
+    final track = ref.read(playerStateNotifierProvider).track;
+    if (track == null) return;
+    final name = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: vinylCream,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SizedBox(
+          height: MediaQuery.sizeOf(context).height * .65,
+          child: PlaylistPicker(trackId: track.bvid)),
+    );
+    if (!mounted || name == null) return;
+    if (ref.read(bilibiliPlaylistsProvider).containsKey(name)) {
+      setState(() => _feedback = 'Bilibili 导入歌单不支持添加歌曲');
+      return;
+    }
+    try {
+      await ref
+          .read(playlistIdsNotifierProvider(name).notifier)
+          .add(track.bvid);
+      if (mounted) {
+        setState(
+            () => _feedback = '已收藏到「${name == 'favorite' ? '我喜欢的' : name}」');
+      }
+    } catch (_) {
+      if (mounted) setState(() => _feedback = '收藏失败，请重试');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(playerStateNotifierProvider);
     final track = state.track;
     final playing = state.state == ap.PlayerState.playing;
-    final favorite = track != null &&
-        ref.watch(playlistIdsNotifierProvider('favorite')).contains(track.bvid);
     final position = _scrubbing ?? state.now;
     final textScaler = MediaQuery.textScalerOf(context);
     return GestureDetector(
@@ -293,8 +322,13 @@ class _PlayerState extends ConsumerState<Player> {
                                                       height: 1.8,
                                                       color: vinylInk)),
                                               SizedBox(height: 16),
+                                              Text('04   向下滑动中央标签，选择歌单收藏当前歌曲。',
+                                                  style: TextStyle(
+                                                      height: 1.8,
+                                                      color: vinylInk)),
+                                              SizedBox(height: 16),
                                               Text(
-                                                  '04   在首页唱片外的区域向左或向右滑动，进入设置。',
+                                                  '05   在首页唱片外的区域向左或向右滑动，进入设置。',
                                                   style: TextStyle(
                                                       height: 1.8,
                                                       color: vinylInk)),
@@ -350,6 +384,7 @@ class _PlayerState extends ConsumerState<Player> {
                               onArmChanged: _moveArm,
                               onSkip: _skip,
                               onLabelLongPress: _showPlaylists,
+                              onLabelSwipeDown: _showSavePlaylists,
                               onSeek: (value) => _run(() => ref
                                   .read(playerStateNotifierProvider.notifier)
                                   .seek(value)),
@@ -421,7 +456,7 @@ class _PlayerState extends ConsumerState<Player> {
                                         ])),
                               ]),
                           const SizedBox(height: 12),
-                          Text(_feedback ?? '外圈旋转定位 · 中央左右拨动换曲',
+                          Text(_feedback ?? '外圈旋转定位 · 中央左右换曲、下滑收藏',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                   color: _feedback == null
@@ -433,18 +468,6 @@ class _PlayerState extends ConsumerState<Player> {
                           Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
-                                _accessory(
-                                    favorite
-                                        ? Icons.favorite_rounded
-                                        : Icons.favorite_border_rounded,
-                                    '收藏',
-                                    track == null
-                                        ? null
-                                        : () => ref
-                                            .read(playlistIdsNotifierProvider(
-                                                    'favorite')
-                                                .notifier)
-                                            .toggle(track.bvid)),
                                 _accessory(
                                     Icons.library_music_outlined,
                                     '选唱片',

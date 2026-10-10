@@ -32,6 +32,23 @@ class _Ids extends PlaylistIdsNotifier {
   List<String> build(String playlistName) => [];
 }
 
+class _WritableIds extends _Ids {
+  @override
+  Future<void> add(String id) async {
+    if (!state.contains(id)) state = [...state, id];
+  }
+}
+
+class _CollectionNames extends PlaylistNames {
+  @override
+  Future<List<String>> build() async => ['favorite', '日常', 'Bili 歌单'];
+}
+
+class _CollectionSources extends _Sources {
+  @override
+  Map<String, String> build() => {'Bili 歌单': '12345'};
+}
+
 class _Sources extends BilibiliPlaylists {
   @override
   Map<String, String> build() => {};
@@ -126,6 +143,65 @@ class _SearchQueue extends CurrentPlaylistNotifier {
 }
 
 void main() {
+  testWidgets('label swipe down saves to local playlists and favorites',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final favorite = _WritableIds();
+    final daily = _WritableIds();
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          player.playerStateNotifierProvider
+              .overrideWith(_SingleTrackPlayer.new),
+          playlistNamesProvider.overrideWith(_CollectionNames.new),
+          bilibiliPlaylistsProvider.overrideWith(_CollectionSources.new),
+          playlistIdsNotifierProvider('favorite').overrideWith(() => favorite),
+          playlistIdsNotifierProvider('日常').overrideWith(() => daily),
+          playlistIdsNotifierProvider('Bili 歌单').overrideWith(_Ids.new),
+          trackCoverProvider(_singleTrack)
+              .overrideWith((ref) async => throw StateError('no cover')),
+        ],
+        child: MaterialApp(
+            theme: AppStyle.theme,
+            home: const Scaffold(body: Player(isHome: true)))));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('收藏'), findsNothing);
+    final record = find.byKey(const ValueKey('vinyl-record'));
+    Future<void> openCollection() async {
+      await tester.drag(record, const Offset(0, 100));
+      await tester.pumpAndSettle();
+      expect(find.text('收藏到歌单'), findsOneWidget);
+      expect(find.text('我喜欢的'), findsOneWidget);
+      expect(find.text('日常'), findsOneWidget);
+      expect(find.text('Bili 歌单'), findsNothing);
+    }
+
+    await openCollection();
+    await tester.tap(find.text('我喜欢的'));
+    await tester.pumpAndSettle();
+    expect(favorite.state, ['one']);
+    await openCollection();
+    expect(find.text('1 首歌曲 · 已收藏'), findsOneWidget);
+    await tester.tap(find.text('我喜欢的'));
+    await tester.pumpAndSettle();
+    expect(favorite.state, ['one']);
+    await openCollection();
+    await tester.tap(find.text('日常'));
+    await tester.pumpAndSettle();
+    expect(daily.state, ['one']);
+    expect(favorite.state, ['one']);
+    expect(find.byType(PlaylistPage), findsNothing);
+    await openCollection();
+    await tester.tap(find.byTooltip('添加歌单'));
+    await tester.pumpAndSettle();
+    expect(find.byType(TextFormField), findsOneWidget);
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
   for (final playbackState in [ap.PlayerState.playing, ap.PlayerState.paused]) {
     testWidgets('tonearm stays stable while seeking in $playbackState',
         (tester) async {
@@ -320,6 +396,7 @@ void main() {
       playlistIdsNotifierProvider('一个很长很长的歌单名称，用来验证小屏幕布局')
           .overrideWith(_Ids.new),
       playlistIdsNotifierProvider('收藏音乐').overrideWith(_Ids.new),
+      playlistIdsNotifierProvider('空白歌单').overrideWith(_Ids.new),
     ], child: const ListenApp()));
     await tester.pumpAndSettle();
     await tester.longPress(find.byKey(const ValueKey('vinyl-record')));
@@ -328,7 +405,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('添加'));
     await tester.pumpAndSettle();
-    expect(find.text('请输入有效的收藏夹 ID'), findsOneWidget);
+    expect(find.text('请输入有效的收藏夹 ID'), findsNothing);
     expect(find.text('请输入歌单名称'), findsOneWidget);
     expect(sources.attempts, isEmpty);
 
@@ -362,6 +439,15 @@ void main() {
     expect(find.text('歌单还是空的'), findsOneWidget);
     expect(find.byType(AlertDialog), findsNothing);
     expect(find.byTooltip('添加歌单'), findsOneWidget);
+    await tester.tap(find.byTooltip('添加歌单'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(1), '空白歌单');
+    await tester.tap(find.text('添加'));
+    await tester.pumpAndSettle();
+    expect(sources.attempts.last, ['空白歌单', '']);
+    expect(find.text('空白歌单'), findsOneWidget);
+    expect(find.text('歌单还是空的'), findsOneWidget);
+    expect(find.byType(AlertDialog), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

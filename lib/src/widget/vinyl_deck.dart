@@ -22,11 +22,13 @@ class VinylDeck extends StatefulWidget {
       this.busy = false,
       this.unavailableDirection,
       this.onLabelLongPress,
+      this.onLabelSwipeDown,
       required this.onArmChanged,
       required this.onSeek,
       required this.onSkip,
       this.onScrubChanged});
   final VoidCallback? onLabelLongPress;
+  final VoidCallback? onLabelSwipeDown;
   final bool playing;
   final bool enabled;
   final bool busy;
@@ -132,10 +134,15 @@ class _VinylDeckState extends State<VinylDeck>
     final swipe = _swiping &&
         movement.dx.abs() >= 48 &&
         movement.dy.abs() < movement.dx.abs() * .65;
+    final swipeDown =
+        _swiping && movement.dy >= 48 && movement.dx.abs() < movement.dy * .65;
     if (target != null && !swipe) _pendingSeek = target;
     _cancelRecord();
     if (!_available) return;
-    if (swipe) {
+    if (swipeDown && widget.onLabelSwipeDown != null) {
+      HapticFeedback.selectionClick();
+      widget.onLabelSwipeDown!();
+    } else if (swipe) {
       HapticFeedback.selectionClick();
       await widget.onSkip(movement.dx < 0 ? 1 : -1);
     } else if (target != null) {
@@ -197,7 +204,7 @@ class _VinylDeckState extends State<VinylDeck>
                       width: diameter,
                       height: diameter,
                       child: Semantics(
-                          label: '唱片，外圈旋转调整播放位置，中心左右拨动换曲',
+                          label: '唱片，外圈旋转调整播放位置，中心左右拨动换曲，中心下滑收藏到歌单',
                           onLongPress:
                               widget.busy ? null : widget.onLabelLongPress,
                           value: '${(_target ?? widget.position).inSeconds} 秒',

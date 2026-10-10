@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:flutter/gestures.dart';
@@ -22,6 +23,17 @@ import 'package:listen2/src/widget/progress_bar.dart';
 import 'package:listen2/src/widget/vinyl_deck.dart';
 import 'package:listen2/main.dart' show ListenApp;
 import 'package:listen2/src/provider/global/main.dart';
+import 'package:listen2/src/provider/global/background_settings.dart';
+
+class _BackgroundSettings extends BackgroundSettingsNotifier {
+  int saves = 0;
+  @override
+  BackgroundSettings build() => const BackgroundSettings();
+  @override
+  Future<void> save() async {
+    saves++;
+  }
+}
 
 class _Names extends PlaylistNames {
   @override
@@ -144,6 +156,59 @@ class _SearchQueue extends CurrentPlaylistNotifier {
 }
 
 void main() {
+  testWidgets('settings preview and player background follow both sliders',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final settings = _BackgroundSettings();
+    final container = ProviderContainer(overrides: [
+      backgroundSettingsProvider.overrideWith(() => settings),
+      globalReadyProvider.overrideWith((ref) async {}),
+      player.playerStateNotifierProvider.overrideWith(_SingleTrackPlayer.new),
+      playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
+      trackCoverProvider(_singleTrack).overrideWith((ref) async =>
+          base64Decode('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==')),
+    ]);
+    addTearDown(container.dispose);
+    await tester.pumpWidget(UncontrolledProviderScope(
+        container: container, child: const ListenApp()));
+    await tester.pumpAndSettle();
+    await tester.drag(find.text('LISTEN 2'), const Offset(120, 0));
+    await tester.pumpAndSettle();
+    final blur = find.byKey(const ValueKey('background-blur-slider'));
+    final gradient = find.byKey(const ValueKey('background-gradient-slider'));
+    await tester.drag(blur, const Offset(180, 0));
+    await tester.pumpAndSettle();
+    final saved = container.read(backgroundSettingsProvider);
+    expect(saved.blur, BackgroundSettings.maxBlur);
+    expect(tester.widget<ImageFiltered>(find.byType(ImageFiltered)).imageFilter,
+        ImageFilter.blur(sigmaX: saved.blur, sigmaY: saved.blur));
+    await tester.ensureVisible(gradient);
+    await tester.drag(gradient, const Offset(-220, 0));
+    await tester.pumpAndSettle();
+    expect(container.read(backgroundSettingsProvider).gradient, 0);
+    List<Color> colors() => (tester
+            .widget<DecoratedBox>(
+                find.byKey(const ValueKey('background-gradient')))
+            .decoration as BoxDecoration)
+        .gradient!
+        .colors;
+    expect(colors().every((color) => color.alpha == 0), isTrue);
+    expect(settings.saves, 2);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Player), findsOneWidget);
+    expect(tester.widget<ImageFiltered>(find.byType(ImageFiltered)).imageFilter,
+        ImageFilter.blur(sigmaX: saved.blur, sigmaY: saved.blur));
+    expect(colors().every((color) => color.alpha == 0), isTrue);
+    settings.setBlur(0);
+    await tester.pump();
+    expect(tester.widget<ImageFiltered>(find.byType(ImageFiltered)).enabled,
+        isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('background fills system bar areas while controls stay safe',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -152,6 +217,7 @@ void main() {
     tester.view.viewPadding = const FakeViewPadding(top: 59, bottom: 34);
     addTearDown(tester.view.reset);
     await tester.pumpWidget(ProviderScope(overrides: [
+      backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
       globalReadyProvider.overrideWith((ref) async {}),
       player.playerStateNotifierProvider.overrideWith(_SingleTrackPlayer.new),
       playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
@@ -187,6 +253,7 @@ void main() {
     final daily = _WritableIds();
     await tester.pumpWidget(ProviderScope(
         overrides: [
+          backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
           player.playerStateNotifierProvider
               .overrideWith(_SingleTrackPlayer.new),
           playlistNamesProvider.overrideWith(_CollectionNames.new),
@@ -242,6 +309,7 @@ void main() {
       final playback = _SeekingPlayer(playbackState);
       await tester.pumpWidget(ProviderScope(
           overrides: [
+            backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
             player.playerStateNotifierProvider.overrideWith(() => playback),
             playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
             trackCoverProvider(_singleTrack)
@@ -299,6 +367,7 @@ void main() {
     final playback = _Player();
     final queue = _ShelfQueue(tracks.map((track) => track.bvid).toList());
     await tester.pumpWidget(ProviderScope(overrides: [
+      backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
       globalReadyProvider.overrideWith((ref) async {}),
       player.playerStateNotifierProvider.overrideWith(() => playback),
       currentPlaylistNotifierProvider.overrideWith(() => queue),
@@ -367,6 +436,7 @@ void main() {
       final playback = _Player();
       await tester.pumpWidget(ProviderScope(
           overrides: [
+            backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
             player.playerStateNotifierProvider.overrideWith(() => playback),
             playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
             for (final track in tracks)
@@ -420,6 +490,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     final sources = _ImportSources();
     await tester.pumpWidget(ProviderScope(overrides: [
+      backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
       globalReadyProvider.overrideWith((ref) async {}),
       bilibiliPlaylistsProvider.overrideWith(() => sources),
       player.playerStateNotifierProvider.overrideWith(_Player.new),
@@ -492,6 +563,7 @@ void main() {
     ];
     final queue = _SearchQueue();
     final container = ProviderContainer(overrides: [
+      backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
       searchResultProvider.overrideWith(() => _SearchResults(tracks)),
       currentPlaylistNotifierProvider.overrideWith(() => queue),
       playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
@@ -530,6 +602,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(ProviderScope(overrides: [
+      backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
       playlistNamesProvider.overrideWith(_Names.new),
       bilibiliPlaylistsProvider.overrideWith(_Sources.new),
       playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
@@ -543,6 +616,7 @@ void main() {
   testWidgets('app starts at turntable and center long press opens playlists',
       (tester) async {
     await tester.pumpWidget(ProviderScope(overrides: [
+      backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
       globalReadyProvider.overrideWith((ref) async {}),
       bilibiliPlaylistsProvider.overrideWith(_Sources.new),
       player.playerStateNotifierProvider.overrideWith(_Player.new),
@@ -570,15 +644,15 @@ void main() {
     final heading = find.text('LISTEN 2');
     await tester.drag(heading, const Offset(40, 0));
     await tester.pumpAndSettle();
-    expect(find.text('音乐与备份'), findsNothing);
+    expect(find.text('背景外观'), findsNothing);
     await tester.drag(heading, const Offset(-40, 0));
     await tester.pumpAndSettle();
-    expect(find.text('音乐与备份'), findsNothing);
+    expect(find.text('背景外观'), findsNothing);
     expect(find.byType(Search), findsNothing);
     await tester.drag(
         find.byKey(const ValueKey('vinyl-record')), const Offset(-120, 0));
     await tester.pumpAndSettle();
-    expect(find.text('音乐与备份'), findsNothing);
+    expect(find.text('背景外观'), findsNothing);
 
     await tester.drag(
         find.byKey(const ValueKey('vinyl-record')), const Offset(0, -100));
@@ -594,7 +668,7 @@ void main() {
     expect(tester.getRect(find.byType(PageSurface)).left, lessThan(0),
         reason: 'Settings must enter from the left');
     await tester.pumpAndSettle();
-    expect(find.text('音乐与备份'), findsOneWidget);
+    expect(find.text('背景外观'), findsOneWidget);
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(find.byType(Player), findsOneWidget);
@@ -606,7 +680,7 @@ void main() {
         reason: 'Search must enter from the right');
     await tester.pumpAndSettle();
     expect(find.text('发现音乐'), findsOneWidget);
-    expect(find.text('音乐与备份'), findsNothing);
+    expect(find.text('背景外观'), findsNothing);
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(find.byType(Player), findsOneWidget);
@@ -614,7 +688,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.drag(find.text('让音乐，慢慢转起来'), const Offset(120, 0));
     await tester.pumpAndSettle();
-    expect(find.text('音乐与备份'), findsOneWidget);
+    expect(find.text('背景外观'), findsOneWidget);
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(find.byType(Player), findsOneWidget);
@@ -665,6 +739,7 @@ void main() {
       (tester) async {
     await tester.pumpWidget(ProviderScope(
         overrides: [
+          backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
           player.playerStateNotifierProvider
               .overrideWith(_SingleTrackPlayer.new),
           currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),

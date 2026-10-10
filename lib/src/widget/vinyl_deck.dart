@@ -10,6 +10,46 @@ const vinylOlive = Color(0xFF657052);
 const vinylGold = Color(0xFFDBBE7E);
 const vinylRevolution = Duration(seconds: 60);
 
+/// Shared dimensions keep the record, needle drawing and touch targets aligned.
+class VinylDeckGeometry {
+  const VinylDeckGeometry(this.size);
+  static const aspectRatio = .88;
+  final Size size;
+
+  Rect get record => Rect.fromLTWH(
+      size.width * .04, size.width * .045, size.width * .92, size.width * .92);
+  Offset get pivot => Offset(size.width * .115, size.height * .905);
+  double get armLength => size.width * .75;
+  Offset get parkedTip => pivot + Offset(armLength, 0);
+
+  double _playingAngle(double progress) {
+    final toCenter = record.center - pivot;
+    final radius = record.width / 2 * (.96 - progress.clamp(0, 1) * .54);
+    final cosine =
+        (armLength * armLength + toCenter.distanceSquared - radius * radius) /
+            (2 * armLength * toCenter.distance);
+    return math.atan2(toCenter.dy, toCenter.dx) +
+        math.acos(cosine.clamp(-1, 1));
+  }
+
+  Offset tip(double lowered, double progress) {
+    final angle = _playingAngle(progress) * lowered.clamp(0, 1);
+    return pivot + Offset(math.cos(angle), math.sin(angle)) * armLength;
+  }
+
+  Offset elbow(Offset tip) {
+    final vector = tip - pivot;
+    final normal = Offset(vector.dy, -vector.dx) / vector.distance;
+    return Offset.lerp(pivot, tip, .78)! + normal * size.width * .03;
+  }
+
+  double loweredAt(Offset position, double progress) {
+    final vector = position - pivot;
+    return (math.atan2(vector.dy, vector.dx) / _playingAngle(progress))
+        .clamp(0.0, 1.0);
+  }
+}
+
 /// Outer grooves scrub; the center switches tracks and opens the shelf or saves.
 class VinylDeck extends StatefulWidget {
   const VinylDeck(
@@ -213,7 +253,10 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
   Widget build(BuildContext context) =>
       LayoutBuilder(builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final diameter = width * .77;
+        final geometry = VinylDeckGeometry(
+            Size(width, width / VinylDeckGeometry.aspectRatio));
+        final record = geometry.record;
+        final diameter = record.width;
         final progress = widget.duration > Duration.zero
             ? ((_target ?? _pendingSeek ?? widget.position).inMilliseconds /
                     widget.duration.inMilliseconds)
@@ -221,7 +264,7 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
             : 0.0;
         final arm = _armDrag ?? (widget.playing ? 1.0 : 0.0);
         return AspectRatio(
-            aspectRatio: 1.04,
+            aspectRatio: VinylDeckGeometry.aspectRatio,
             child: Container(
               decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(24),
@@ -241,8 +284,8 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                     Positioned.fill(
                         child: CustomPaint(painter: _PlinthPainter())),
                     Positioned(
-                      left: width * .035,
-                      top: width * .105,
+                      left: record.left,
+                      top: record.top,
                       width: diameter,
                       height: diameter,
                       child: Semantics(
@@ -395,10 +438,8 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                                       : null,
                                   onPanUpdate: _available
                                       ? (details) => setState(() => _armDrag =
-                                          ((_armDrag ?? arm) -
-                                                  details.delta.dx /
-                                                      (width * .26))
-                                              .clamp(0.0, 1.0))
+                                          geometry.loweredAt(
+                                              details.localPosition, progress))
                                       : null,
                                   onPanEnd: _available
                                       ? (_) {
@@ -417,8 +458,8 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                                 )))),
                     for (final direction in [-1, 1])
                       Positioned(
-                        left: width * .035 + (direction > 0 ? diameter / 2 : 0),
-                        top: width * .105,
+                        left: record.left + (direction > 0 ? diameter / 2 : 0),
+                        top: record.top,
                         width: diameter / 2,
                         height: diameter,
                         child: IgnorePointer(
@@ -440,7 +481,7 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                         )),
                       ),
                     Positioned(
-                        left: 18,
+                        left: width * .26,
                         bottom: 14,
                         child: Row(children: [
                           AnimatedContainer(
@@ -663,14 +704,10 @@ class _RecordPainter extends CustomPainter {
 }
 
 // The arm and its cradle share the same parked cartridge geometry.
-Offset _armPivot(Size size) => Offset(size.width * .855, size.height * .18);
-Offset _armTip(Size size, double lowered, double progress) => Offset.lerp(
-    Offset(size.width * .885, size.height * .72),
-    // Start near the outer lead-in groove and finish outside the center label.
-    Offset(size.width * (.785 - progress * .225), size.height * .60),
-    lowered)!;
-Offset _armElbow(Size size, Offset tip) =>
-    Offset.lerp(_armPivot(size), tip, .78)! + Offset(size.width * .045, 0);
+Offset _armPivot(Size size) => VinylDeckGeometry(size).pivot;
+Offset _armTip(Size size, double lowered, double progress) =>
+    VinylDeckGeometry(size).tip(lowered, progress);
+Offset _armElbow(Size size, Offset tip) => VinylDeckGeometry(size).elbow(tip);
 double _cartridgeAngle(Size size, Offset tip) {
   final elbow = _armElbow(size, tip);
   return math.atan2(tip.dy - elbow.dy, tip.dx - elbow.dx) - math.pi / 2;
@@ -709,7 +746,7 @@ class _PlinthPainter extends CustomPainter {
     canvas.translate(parkedTip.dx, parkedTip.dy);
     canvas.rotate(_cartridgeAngle(size, parkedTip));
     final cradle = RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-11, -13, 22, 38), const Radius.circular(5));
+        const Rect.fromLTWH(-11, -33, 22, 38), const Radius.circular(5));
     canvas.drawRRect(cradle, Paint()..color = const Color(0xFF352D25));
     canvas.drawRRect(
         cradle,
@@ -735,10 +772,11 @@ class _TonearmPainter extends CustomPainter {
     final pivot = _armPivot(size);
     final tip = _armTip(size, lowered, progress);
     final elbow = _armElbow(size, tip);
+    final armEnd = tip - (tip - elbow) / (tip - elbow).distance * 20;
     final path = Path()
       ..moveTo(pivot.dx, pivot.dy)
       ..lineTo(elbow.dx, elbow.dy)
-      ..lineTo(tip.dx, tip.dy);
+      ..lineTo(armEnd.dx, armEnd.dy);
     canvas.drawPath(
         path.shift(const Offset(4, 6)),
         Paint()
@@ -781,13 +819,13 @@ class _TonearmPainter extends CustomPainter {
     canvas.rotate(_cartridgeAngle(size, tip));
     canvas.drawRRect(
         RRect.fromRectAndRadius(
-            const Rect.fromLTWH(-8, -10, 16, 27), const Radius.circular(3)),
+            const Rect.fromLTWH(-8, -30, 16, 27), const Radius.circular(3)),
         Paint()..color = const Color(0xFF212820));
     canvas.drawRect(
-        const Rect.fromLTWH(-5, 6, 10, 8), Paint()..color = vinylGold);
+        const Rect.fromLTWH(-5, -14, 10, 8), Paint()..color = vinylGold);
     canvas.drawLine(
-        const Offset(0, 14),
-        const Offset(0, 20),
+        const Offset(0, -6),
+        Offset.zero,
         Paint()
           ..strokeWidth = 2
           ..color = const Color(0xFFECE4D0));

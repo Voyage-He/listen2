@@ -4,6 +4,33 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:listen2/src/widget/vinyl_deck.dart';
 
 void main() {
+  test('larger record and horizontal parked arm fit the deck', () {
+    for (final width in [288.0, 358.0, 460.0]) {
+      final geometry =
+          VinylDeckGeometry(Size(width, width / VinylDeckGeometry.aspectRatio));
+      expect(geometry.record.width, greaterThan(width * .9));
+      expect(geometry.pivot.dx, lessThan(width * .2));
+      expect(geometry.pivot.dy, greaterThan(geometry.record.bottom));
+      expect(geometry.parkedTip.dx, greaterThan(width * .8));
+      expect(geometry.parkedTip.dy, geometry.pivot.dy);
+      final radius = geometry.record.width / 2;
+      double groove(double progress) =>
+          (geometry.tip(1, progress) - geometry.record.center).distance;
+      expect(groove(0), greaterThan(radius * .9));
+      expect(groove(0), lessThan(radius));
+      expect(groove(1), greaterThan(radius * .35));
+      expect(groove(1), lessThan(radius * .5));
+      for (final progress in [0.0, .5, 1.0]) {
+        for (final lowered in [0.0, .5, 1.0]) {
+          final tip = geometry.tip(lowered, progress);
+          expect((tip - geometry.pivot).distance,
+              closeTo(geometry.armLength, .001));
+          expect((Offset.zero & geometry.size).contains(tip), isTrue);
+        }
+      }
+    }
+  });
+
   Future<void> pumpDeck(WidgetTester tester,
       {bool enabled = true,
       bool reduceMotion = false,
@@ -99,12 +126,12 @@ void main() {
     final moves = <bool>[];
     await pumpDeck(tester, arm: (value) async => moves.add(value));
     final deck = tester.getRect(find.byType(VinylDeck));
-    final tip = deck.topLeft + Offset(deck.width * .885, deck.height * .72);
+    final tip = deck.topLeft + VinylDeckGeometry(deck.size).parkedTip;
     await tester.tapAt(tip);
     await tester.pumpAndSettle();
     expect(moves, [true]);
     final drag = await tester.startGesture(tip);
-    await drag.moveBy(const Offset(-100, 0));
+    await drag.moveBy(const Offset(0, -100));
     await tester.pump();
     await drag.up();
     await tester.pumpAndSettle();
@@ -391,8 +418,7 @@ void main() {
     await pumpDeck(tester,
         enabled: false, arm: (value) async => arms.add(value));
     final deck = tester.getRect(find.byType(VinylDeck));
-    await tester
-        .tapAt(deck.topLeft + Offset(deck.width * .885, deck.height * .72));
+    await tester.tapAt(deck.topLeft + VinylDeckGeometry(deck.size).parkedTip);
     await tester.pumpAndSettle();
     expect(arms, isEmpty);
   });

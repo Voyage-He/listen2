@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show ImageFilter;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
@@ -11,6 +10,7 @@ import 'package:listen2/src/provider/repo/track.dart';
 import 'package:listen2/src/provider/repo/bilibili_playlists.dart';
 import 'package:listen2/src/view/page/search/search.page.dart';
 import 'package:listen2/src/widget/track_cover.widget.dart';
+import 'package:listen2/src/widget/player_background.dart';
 import 'package:listen2/src/widget/vinyl_deck.dart';
 import 'package:listen2/src/widget/playlist_picker.dart';
 import 'package:listen2/src/view/page/playlist/playlist.dart';
@@ -326,7 +326,7 @@ class _PlayerState extends ConsumerState<Player> {
                                                       color: vinylInk)),
                                               SizedBox(height: 24),
                                               Text(
-                                                  '01   把唱针向左移到唱片上，开始播放。\n       向右移回支架，暂停播放。也可以轻点唱臂。',
+                                                  '01   把右下方唱针向上移到唱片上，开始播放。\n       向下移回支架，暂停播放。也可以轻点唱臂。',
                                                   style: TextStyle(
                                                       height: 1.8,
                                                       color: vinylInk)),
@@ -360,7 +360,7 @@ class _PlayerState extends ConsumerState<Player> {
                   ])),
               Expanded(
                   child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
                 child: Center(
                     child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 460),
@@ -391,7 +391,7 @@ class _PlayerState extends ConsumerState<Player> {
                                     fontSize: 10,
                                     letterSpacing: 2)),
                           ]),
-                          const SizedBox(height: 22),
+                          const SizedBox(height: 16),
                           VinylDeck(
                               playing: playing,
                               position: state.now,
@@ -414,7 +414,7 @@ class _PlayerState extends ConsumerState<Player> {
                               onScrubChanged: (value) {
                                 if (mounted) setState(() => _scrubbing = value);
                               }),
-                          const SizedBox(height: 28),
+                          const SizedBox(height: 22),
                           SizedBox(
                               key: const ValueKey('player-track-title'),
                               width: double.infinity,
@@ -505,40 +505,7 @@ class _PlayerSurface extends StatelessWidget {
         const Positioned.fill(
             child: IgnorePointer(
                 child: ExcludeSemantics(
-                    child: RepaintBoundary(child: _PlayerBackground())))),
+                    child: RepaintBoundary(child: PlayerBackground())))),
         SafeArea(child: child),
       ]));
-}
-
-class _PlayerBackground extends ConsumerWidget {
-  const _PlayerBackground();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final track =
-        ref.watch(playerStateNotifierProvider.select((state) => state.track));
-    if (track == null) return const SizedBox.expand();
-    final cover = ref.watch(trackCoverProvider(track)).valueOrNull;
-    if (cover == null) return const SizedBox.expand();
-    return ClipRect(
-        child: Stack(fit: StackFit.expand, children: [
-      ImageFiltered(
-          imageFilter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
-          child: Transform.scale(
-              scale: 1.15,
-              child: Image.memory(cover,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox.expand()))),
-      const DecoratedBox(
-          decoration: BoxDecoration(
-              gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-            Color(0x59F1EFE7),
-            Color(0x73F1EFE7),
-            Color(0x99F1EFE7),
-          ]))),
-    ]));
-  }
 }

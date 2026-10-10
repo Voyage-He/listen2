@@ -599,7 +599,8 @@ class _RecordPainter extends CustomPainter {
 Offset _armPivot(Size size) => Offset(size.width * .855, size.height * .18);
 Offset _armTip(Size size, double lowered, double progress) => Offset.lerp(
     Offset(size.width * .885, size.height * .72),
-    Offset(size.width * (.63 - progress * .10), size.height * .60),
+    // Start near the outer lead-in groove and finish outside the center label.
+    Offset(size.width * (.785 - progress * .225), size.height * .60),
     lowered)!;
 Offset _armElbow(Size size, Offset tip) =>
     Offset.lerp(_armPivot(size), tip, .78)! + Offset(size.width * .045, 0);

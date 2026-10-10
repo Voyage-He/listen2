@@ -23,6 +23,16 @@ class _SearchClient extends BilibiliClient {
 void main() {
   late ProviderContainer container;
   late _SearchClient client;
+  late ProviderSubscription resultsSubscription;
+
+  final video = BilibiliVideoModel.fromJson({
+    'title': 'Remembered song',
+    'bvid': 'BVremembered',
+    'aid': 1,
+    'author': 'Artist',
+    'mid': 1,
+    'pic': '//example.com/cover.jpg',
+  });
 
   setUp(() async {
     client = _SearchClient();
@@ -30,13 +40,45 @@ void main() {
       bilibiliClientNotifierProvider
           .overrideWith(() => _ClientNotifier(client)),
     ]);
-    container.listen(searchResultProvider, (_, __) {});
+    resultsSubscription = container.listen(searchResultProvider, (_, __) {});
     await container.read(searchResultProvider.future);
     await container.read(bilibiliClientNotifierProvider.future);
     container.read(keywordNotifierProvider.notifier).update('song');
   });
 
   tearDown(() => container.dispose());
+
+  test('keyword and results survive leaving and reopening search', () async {
+    var requests = 0;
+    client.onSearch = (_) async {
+      requests++;
+      return [video];
+    };
+    final keywordSubscription =
+        container.listen(keywordNotifierProvider, (_, __) {});
+    await container.read(searchResultProvider.notifier).search();
+    resultsSubscription.close();
+    keywordSubscription.close();
+    await container.pump();
+
+    expect(container.read(keywordNotifierProvider), 'song');
+    final results = await container.read(searchResultProvider.future);
+    expect(results.single.bvid, 'remembered');
+    expect(results.single.title, 'Remembered song');
+    expect(requests, 1);
+  });
+
+  test('search finishing while page is closed retains its results', () async {
+    final response = Completer<List<BilibiliVideoModel>>();
+    client.onSearch = (_) => response.future;
+    final pending = container.read(searchResultProvider.notifier).search();
+    resultsSubscription.close();
+    await container.pump();
+    response.complete([video]);
+    await pending;
+    expect(container.read(searchResultProvider).requireValue.single.bvid,
+        'remembered');
+  });
 
   test('empty search results do not throw', () async {
     await container.read(searchResultProvider.notifier).search();

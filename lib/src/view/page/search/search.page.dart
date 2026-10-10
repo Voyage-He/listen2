@@ -13,7 +13,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'search.page.g.dart';
 
-@riverpod
+@Riverpod(keepAlive: true)
 class KeywordNotifier extends _$KeywordNotifier {
   @override
   String build() {
@@ -25,7 +25,7 @@ class KeywordNotifier extends _$KeywordNotifier {
   }
 }
 
-@riverpod
+@Riverpod(keepAlive: true)
 class SearchResult extends _$SearchResult {
   int _request = 0;
 

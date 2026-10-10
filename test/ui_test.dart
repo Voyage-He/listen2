@@ -356,7 +356,7 @@ void main() {
     ], child: const ListenApp()));
     await tester.pumpAndSettle();
     expect(find.byType(Player), findsOneWidget);
-    expect(find.byTooltip('设置'), findsOneWidget);
+    expect(find.byTooltip('设置'), findsNothing);
     expect(find.byTooltip('返回'), findsNothing);
     await tester.longPress(find.byKey(const ValueKey('vinyl-record')));
     await tester.pumpAndSettle();
@@ -367,10 +367,24 @@ void main() {
     expect(find.text('歌单还是空的'), findsOneWidget);
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
-    expect(find.byTooltip('设置'), findsOneWidget);
-    await tester.tap(find.byTooltip('设置'));
+    expect(find.byTooltip('设置'), findsNothing);
+    final heading = find.text('LISTEN 2');
+    await tester.drag(heading, const Offset(120, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('音乐与备份'), findsNothing);
+    await tester.drag(heading, const Offset(-40, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('音乐与备份'), findsNothing);
+    await tester.drag(
+        find.byKey(const ValueKey('vinyl-record')), const Offset(-120, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('音乐与备份'), findsNothing);
+    await tester.drag(heading, const Offset(-120, 0));
     await tester.pumpAndSettle();
     expect(find.text('音乐与备份'), findsOneWidget);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Player), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

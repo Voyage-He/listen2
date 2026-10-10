@@ -469,15 +469,33 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                                               painter: _TonearmPainter(
                                                   value, progress)),
                                         )),
-                                    if (_target != null)
+                                    if (_target != null ||
+                                        (widget.enabled &&
+                                            widget.duration > Duration.zero))
                                       Positioned.fill(
                                           child: IgnorePointer(
-                                              child: CustomSingleChildLayout(
-                                                  delegate: _ScrubTimeLayout(
+                                              child: CustomMultiChildLayout(
+                                                  delegate: _TimeBubbleLayout(
+                                                      geometry,
                                                       geometry.tip(
                                                           value, progress)),
-                                                  child: _ScrubTimeBubble(
-                                                      position: _target!)))),
+                                                  children: [
+                                            if (widget.enabled &&
+                                                widget.duration > Duration.zero)
+                                              LayoutId(
+                                                  id: _TimeBubbleSlot.duration,
+                                                  child: _GlassTimeBubble(
+                                                      key: const ValueKey(
+                                                          'vinyl-total-time'),
+                                                      time: widget.duration)),
+                                            if (_target != null)
+                                              LayoutId(
+                                                  id: _TimeBubbleSlot.position,
+                                                  child: _GlassTimeBubble(
+                                                      key: const ValueKey(
+                                                          'vinyl-scrub-time'),
+                                                      time: _target!)),
+                                          ]))),
                                   ],
                                 ))),
                     for (final direction in [-1, 1])
@@ -549,13 +567,12 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
       });
 }
 
-class _ScrubTimeBubble extends StatelessWidget {
-  const _ScrubTimeBubble({required this.position});
-  final Duration position;
+class _GlassTimeBubble extends StatelessWidget {
+  const _GlassTimeBubble({super.key, required this.time});
+  final Duration time;
 
   @override
   Widget build(BuildContext context) => Container(
-      key: const ValueKey('vinyl-scrub-time'),
       decoration: const BoxDecoration(
           borderRadius: BorderRadius.all(Radius.circular(100)),
           boxShadow: [
@@ -588,31 +605,65 @@ class _ScrubTimeBubble extends StatelessWidget {
                               ]),
                           border: Border.all(
                               color: const Color(0x99FFFFFF), width: .8)),
-                      child: Text('${position.inMinutes}:${(position.inSeconds % 60).toString().padLeft(2, '0')}',
+                      child: Text('${time.inMinutes}:${(time.inSeconds % 60).toString().padLeft(2, '0')}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(color: vinylCream, fontSize: 13, fontWeight: FontWeight.w600, fontFeatures: [FontFeature.tabularFigures()], shadows: [Shadow(color: Color(0x66000000), blurRadius: 2, offset: Offset(0, 1))])))))));
 }
 
-class _ScrubTimeLayout extends SingleChildLayoutDelegate {
-  const _ScrubTimeLayout(this.needle);
+enum _TimeBubbleSlot { duration, position }
+
+class _TimeBubbleLayout extends MultiChildLayoutDelegate {
+  _TimeBubbleLayout(this.geometry, this.needle);
+  final VinylDeckGeometry geometry;
   final Offset needle;
   static const _margin = 12.0;
 
   @override
-  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
-      BoxConstraints.loose(Size(math.max(0, constraints.maxWidth - _margin * 2),
-          math.max(0, constraints.maxHeight - _margin * 2)));
+  void performLayout(Size size) {
+    final constraints = BoxConstraints.loose(Size(
+        math.max(0, size.width - _margin * 2),
+        math.max(0, size.height - _margin * 2)));
+    double fitX(double x, Size bubble) => x.clamp(
+        _margin, math.max(_margin, size.width - bubble.width - _margin));
+    double fitY(double y, Size bubble) => y.clamp(
+        _margin, math.max(_margin, size.height - bubble.height - _margin));
+    Rect? durationRect;
+    if (hasChild(_TimeBubbleSlot.duration)) {
+      final bubble = layoutChild(_TimeBubbleSlot.duration, constraints);
+      final record = geometry.record;
+      final radius = record.width / 2;
+      final radial = geometry.tip(1, 0) - record.center;
+      final edge = record.center + radial / radial.distance * radius;
+      final left = fitX(edge.dx - bubble.width / 2, bubble);
+      // Keep the entire bubble outside the circular edge, even on small decks.
+      final nearestX = record.center.dx.clamp(left, left + bubble.width);
+      final dx = nearestX - record.center.dx;
+      final boundaryY =
+          record.center.dy + math.sqrt(math.max(0, radius * radius - dx * dx));
+      final top = fitY(math.max(edge.dy + 12, boundaryY + 8), bubble);
+      durationRect = Rect.fromLTWH(left, top, bubble.width, bubble.height);
+      positionChild(_TimeBubbleSlot.duration, durationRect.topLeft);
+    }
+    if (hasChild(_TimeBubbleSlot.position)) {
+      final bubble = layoutChild(_TimeBubbleSlot.position, constraints);
+      var offset = Offset(fitX(needle.dx - bubble.width / 2, bubble),
+          fitY(needle.dy - bubble.height - 18, bubble));
+      if (durationRect != null &&
+          (offset & bubble).overlaps(durationRect.inflate(8))) {
+        final left = durationRect.left - bubble.width - 8;
+        offset = left >= _margin
+            ? Offset(left, offset.dy)
+            : Offset(
+                offset.dx, fitY(durationRect.top - bubble.height - 8, bubble));
+      }
+      positionChild(_TimeBubbleSlot.position, offset);
+    }
+  }
 
   @override
-  Offset getPositionForChild(Size size, Size childSize) => Offset(
-      (needle.dx - childSize.width / 2).clamp(
-          _margin, math.max(_margin, size.width - childSize.width - _margin)),
-      (needle.dy - childSize.height - 18).clamp(_margin,
-          math.max(_margin, size.height - childSize.height - _margin)));
-
-  @override
-  bool shouldRelayout(_ScrubTimeLayout oldDelegate) =>
+  bool shouldRelayout(_TimeBubbleLayout oldDelegate) =>
+      geometry.size != oldDelegate.geometry.size ||
       needle != oldDelegate.needle;
 }
 

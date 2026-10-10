@@ -68,9 +68,6 @@ class _PlayerState extends ConsumerState<Player> {
     });
   }
 
-  String _time(Duration value) =>
-      '${value.inMinutes}:${(value.inSeconds % 60).toString().padLeft(2, '0')}';
-
   Future<void> _run(Future<void> Function() action) async {
     if (_busy) return;
     _edgeFeedbackTimer?.cancel();
@@ -253,7 +250,6 @@ class _PlayerState extends ConsumerState<Player> {
     final state = ref.watch(playerStateNotifierProvider);
     final track = state.track;
     final playing = state.state == ap.PlayerState.playing;
-    final position = _scrubbing ?? state.now;
     final textScaler = MediaQuery.textScalerOf(context);
     return GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -458,32 +454,6 @@ class _PlayerState extends ConsumerState<Player> {
                                           color: vinylOlive,
                                           fontSize: 13,
                                           height: 1.4)))),
-                          const SizedBox(height: 24),
-                          Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(_time(position),
-                                    style: const TextStyle(
-                                        color: vinylInk,
-                                        fontSize: 17,
-                                        fontFeatures: [
-                                          FontFeature.tabularFigures()
-                                        ])),
-                                const Padding(
-                                    padding:
-                                        EdgeInsets.symmetric(horizontal: 14),
-                                    child: Text('/',
-                                        style: TextStyle(
-                                            color: Color(0xFFB1B2A5),
-                                            fontSize: 13))),
-                                Text(_time(state.length),
-                                    style: const TextStyle(
-                                        color: vinylOlive,
-                                        fontSize: 17,
-                                        fontFeatures: [
-                                          FontFeature.tabularFigures()
-                                        ])),
-                              ]),
                           if (_feedback != null) ...[
                             const SizedBox(height: 12),
                             Text(_feedback!,

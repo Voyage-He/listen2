@@ -464,7 +464,6 @@ void main() {
         ])
           key: tester.getRect(find.byKey(ValueKey(key))),
       };
-      final time = tester.getRect(find.text('0:00').first);
 
       for (final track in <Track?>[...tracks, null]) {
         playback.select(track);
@@ -474,7 +473,6 @@ void main() {
               reason:
                   'Switching to ${track?.title} must not move ${entry.key}');
         }
-        expect(tester.getRect(find.text('0:00').first), time);
         expect(scroll.position.pixels, offset);
         expect(scroll.position.maxScrollExtent, extent);
         expect(tester.takeException(), isNull);
@@ -721,7 +719,7 @@ void main() {
   testWidgets('player fits narrow screens with unknown duration',
       (tester) async {
     await pumpPage(tester, const Player());
-    expect(find.text('0:00'), findsNWidgets(2));
+    expect(find.text('0:00'), findsNothing);
     expect(find.byType(Slider), findsNothing);
     expect(find.byKey(const ValueKey('tonearm')), findsOneWidget);
     expect(tester.takeException(), isNull);

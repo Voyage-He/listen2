@@ -91,7 +91,7 @@ class _PlayerState extends ConsumerState<Player> {
   Future<void> _moveArm(bool lowered) async {
     final state = ref.read(playerStateNotifierProvider);
     if (state.track == null) {
-      setState(() => _feedback = '先从音乐库选择一张唱片');
+      setState(() => _feedback = '尚未选择歌曲');
       return;
     }
     if (lowered == (state.state == ap.PlayerState.playing)) return;
@@ -326,31 +326,37 @@ class _PlayerState extends ConsumerState<Player> {
                                                       color: vinylInk)),
                                               SizedBox(height: 24),
                                               Text(
-                                                  '01   把右下方唱针向上移到唱片上，开始播放。\n       向下移回支架，暂停播放。也可以轻点唱臂。',
+                                                  '01   长按中央标签打开歌单，选择歌曲。\n       也可以在首页唱片外左滑进入搜索，选择音乐。',
                                                   style: TextStyle(
                                                       height: 1.8,
                                                       color: vinylInk)),
                                               SizedBox(height: 16),
                                               Text(
-                                                  '02   沿外圈沟槽顺时针旋转快进，逆时针快退。\n       每转一圈调整 60 秒，松手后定位。',
+                                                  '02   把右下方唱针向上移到唱片上，开始播放。\n       向下移回支架，暂停播放。也可以轻点唱臂。',
                                                   style: TextStyle(
                                                       height: 1.8,
                                                       color: vinylInk)),
                                               SizedBox(height: 16),
                                               Text(
-                                                  '03   在中央标签上向左拨换下一曲，向右拨换上一曲。\n       唱片架中的音乐按歌单顺序播放。',
+                                                  '03   沿外圈沟槽顺时针旋转快进，逆时针快退。\n       每转一圈调整 60 秒，松手后定位。',
                                                   style: TextStyle(
                                                       height: 1.8,
                                                       color: vinylInk)),
                                               SizedBox(height: 16),
                                               Text(
-                                                  '04   中央标签上滑打开唱片架，下滑收藏当前歌曲。\n       长按中央标签，打开歌单列表。',
+                                                  '04   在中央标签上向左拨换下一曲，向右拨换上一曲。\n       唱片架中的音乐按歌单顺序播放。',
                                                   style: TextStyle(
                                                       height: 1.8,
                                                       color: vinylInk)),
                                               SizedBox(height: 16),
                                               Text(
-                                                  '05   在首页唱片外的区域右滑进入设置，左滑进入搜索。',
+                                                  '05   中央标签上滑打开唱片架，下滑收藏当前歌曲。\n       在收藏列表中选择本地歌单或「我喜欢的」。',
+                                                  style: TextStyle(
+                                                      height: 1.8,
+                                                      color: vinylInk)),
+                                              SizedBox(height: 16),
+                                              Text(
+                                                  '06   在首页唱片外的区域右滑进入设置，左滑进入搜索。',
                                                   style: TextStyle(
                                                       height: 1.8,
                                                       color: vinylInk)),
@@ -440,7 +446,7 @@ class _PlayerState extends ConsumerState<Player> {
                               width: double.infinity,
                               height: textScaler.scale(13) * 1.4,
                               child: Center(
-                                  child: Text(track?.singer ?? '选择一张唱片，放下唱针',
+                                  child: Text(track?.singer ?? '',
                                       textAlign: TextAlign.center,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -478,15 +484,15 @@ class _PlayerState extends ConsumerState<Player> {
                                           FontFeature.tabularFigures()
                                         ])),
                               ]),
-                          const SizedBox(height: 12),
-                          Text(_feedback ?? '中央左右换曲 · 上滑唱片架 · 下滑收藏',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                  color: _feedback == null
-                                      ? vinylOlive
-                                      : const Color(0xFF9B593D),
-                                  fontSize: 11,
-                                  height: 1.6)),
+                          if (_feedback != null) ...[
+                            const SizedBox(height: 12),
+                            Text(_feedback!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                    color: Color(0xFF9B593D),
+                                    fontSize: 11,
+                                    height: 1.6)),
+                          ],
                         ]))),
               )),
             ])));

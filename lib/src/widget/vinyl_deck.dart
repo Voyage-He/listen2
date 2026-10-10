@@ -505,7 +505,7 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                               widget.busy
                                   ? 'LOADING'
                                   : widget.playing
-                                      ? '60s / REV'
+                                      ? 'PLAYING'
                                       : 'STANDBY',
                               style: const TextStyle(
                                   fontSize: 9,

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -64,6 +65,14 @@ class _SingleTrackQueue extends CurrentPlaylistNotifier {
       const CurrentPlaylistState(index: 0, playlist: ['one']);
 }
 
+class _ShelfQueue extends _SearchQueue {
+  _ShelfQueue(this.ids);
+  final List<String> ids;
+
+  @override
+  CurrentPlaylistState build() => CurrentPlaylistState(index: 0, playlist: ids);
+}
+
 class _SearchResults extends SearchResult {
   _SearchResults(this.tracks);
   final List<Track> tracks;
@@ -90,6 +99,66 @@ class _SearchQueue extends CurrentPlaylistNotifier {
 }
 
 void main() {
+  testWidgets('record shelf scrolls through lazily loaded tracks',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final tracks = List.generate(
+        60, (index) => Track('record-$index', 'Record $index', 'Artist', ''));
+    final playback = _Player();
+    final queue = _ShelfQueue(tracks.map((track) => track.bvid).toList());
+    await tester.pumpWidget(ProviderScope(overrides: [
+      globalReadyProvider.overrideWith((ref) async {}),
+      player.playerStateNotifierProvider.overrideWith(() => playback),
+      currentPlaylistNotifierProvider.overrideWith(() => queue),
+      playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
+      trackCoverProvider(tracks.first)
+          .overrideWith((ref) async => throw StateError('no cover')),
+      for (final track in tracks)
+        trackProvider(track.bvid).overrideWith((ref) async => track),
+    ], child: const ListenApp()));
+    await tester.pumpAndSettle();
+    playback.select(tracks.first);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byTooltip('唱片架'));
+    await tester.tap(find.byTooltip('唱片架'));
+    await tester.pumpAndSettle();
+    final shelf = find.byType(ListView);
+    expect(find.descendant(of: shelf, matching: find.text('Record 0')),
+        findsOneWidget);
+    final scrollable =
+        find.descendant(of: shelf, matching: find.byType(Scrollable));
+    final position = tester.state<ScrollableState>(scrollable).position;
+    await tester.drag(shelf, const Offset(0, -250),
+        kind: PointerDeviceKind.mouse);
+    await tester.pumpAndSettle();
+    expect(position.pixels, greaterThan(0),
+        reason: 'Mouse dragging must scroll the record shelf on desktop');
+    final mouseOffset = position.pixels;
+    tester.binding.handlePointerEvent(PointerScrollEvent(
+        position: tester.getCenter(shelf),
+        scrollDelta: const Offset(0, 150),
+        kind: PointerDeviceKind.mouse));
+    await tester.pumpAndSettle();
+    expect(position.pixels, greaterThan(mouseOffset));
+    final wheelOffset = position.pixels;
+    await tester.drag(shelf, const Offset(0, -200));
+    await tester.pumpAndSettle();
+    expect(position.pixels, greaterThan(wheelOffset));
+    await tester.scrollUntilVisible(find.text('Record 59'), 300,
+        scrollable: scrollable);
+    await tester.pumpAndSettle();
+    expect(find.text('Record 59'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Record 59'));
+    await tester.pumpAndSettle();
+    expect(queue.playedId, tracks.last.bvid);
+    expect(queue.state.playlist, tracks.map((track) => track.bvid).toList());
+    expect(find.byType(ListView), findsNothing);
+  });
+
   for (final (size, scale) in [
     (const Size(320, 640), 1.0),
     (const Size(390, 844), 1.6),

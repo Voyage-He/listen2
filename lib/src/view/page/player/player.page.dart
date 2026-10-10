@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -146,41 +147,50 @@ class _PlayerState extends ConsumerState<Player> {
                                   padding: EdgeInsets.all(24),
                                   child: Text('从歌单选择音乐，唱片会按顺序放入这里',
                                       textAlign: TextAlign.center)))
-                          : ListView.builder(
-                              itemCount: ids.length,
-                              itemBuilder: (context, index) => ref
-                                  .watch(trackProvider(ids[index]))
-                                  .when(
-                                    data: (item) => ListTile(
-                                        leading: Icon(
-                                            ids[index] == track?.bvid
-                                                ? Icons.album_rounded
-                                                : Icons.album_outlined,
-                                            color: vinylOlive),
-                                        title: Text(item.title,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis),
-                                        subtitle: Text(item.singer,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis),
-                                        onTap: () {
-                                          Navigator.pop(context);
-                                          _run(() => ref
-                                              .read(
-                                                  currentPlaylistNotifierProvider
-                                                      .notifier)
-                                              .play(ids[index], ids));
-                                        }),
-                                    loading: () =>
-                                        const ListTile(title: Text('正在取出唱片…')),
-                                    error: (_, __) => ListTile(
-                                        title: const Text('唱片加载失败'),
-                                        trailing: IconButton(
-                                            tooltip: '重试',
-                                            icon: const Icon(Icons.refresh),
-                                            onPressed: () => ref.invalidate(
-                                                trackProvider(ids[index])))),
-                                  ))),
+                          : ScrollConfiguration(
+                              behavior: ScrollConfiguration.of(context)
+                                  .copyWith(dragDevices: {
+                                ...ScrollConfiguration.of(context).dragDevices,
+                                PointerDeviceKind.mouse,
+                              }),
+                              child: ListView.builder(
+                                  itemCount: ids.length,
+                                  itemBuilder: (context, index) => ref
+                                      .watch(trackProvider(ids[index]))
+                                      .when(
+                                        data: (item) => ListTile(
+                                            leading: Icon(
+                                                ids[index] == track?.bvid
+                                                    ? Icons.album_rounded
+                                                    : Icons.album_outlined,
+                                                color: vinylOlive),
+                                            title: Text(item.title,
+                                                maxLines: 1,
+                                                overflow:
+                                                    TextOverflow.ellipsis),
+                                            subtitle: Text(item.singer,
+                                                maxLines: 1,
+                                                overflow:
+                                                    TextOverflow.ellipsis),
+                                            onTap: () {
+                                              Navigator.pop(context);
+                                              _run(() => ref
+                                                  .read(
+                                                      currentPlaylistNotifierProvider
+                                                          .notifier)
+                                                  .play(ids[index], ids));
+                                            }),
+                                        loading: () => const ListTile(
+                                            title: Text('正在取出唱片…')),
+                                        error: (_, __) => ListTile(
+                                            title: const Text('唱片加载失败'),
+                                            trailing: IconButton(
+                                                tooltip: '重试',
+                                                icon: const Icon(Icons.refresh),
+                                                onPressed: () => ref.invalidate(
+                                                    trackProvider(
+                                                        ids[index])))),
+                                      )))),
                 ]);
           })),
     );

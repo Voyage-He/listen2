@@ -6,27 +6,34 @@ import 'package:listen2/src/widget/vinyl_deck.dart';
 void main() {
   Future<void> pumpDeck(WidgetTester tester,
       {bool enabled = true,
+      bool reduceMotion = false,
       VoidCallback? longPress,
+      VoidCallback? swipeDown,
       Duration length = const Duration(minutes: 3),
       Future<void> Function(bool)? arm,
       Future<void> Function(Duration)? seek,
       Future<void> Function(int)? skip}) async {
     await tester.pumpWidget(MaterialApp(
+        builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(disableAnimations: reduceMotion),
+            child: child!),
         home: Scaffold(
             body: Center(
                 child: SizedBox(
-      width: 360,
-      child: VinylDeck(
-          playing: false,
-          enabled: enabled,
-          onLabelLongPress: longPress,
-          position: const Duration(seconds: 45),
-          duration: length,
-          cover: const ColoredBox(color: vinylGold),
-          onArmChanged: arm ?? (_) async {},
-          onSeek: seek ?? (_) async {},
-          onSkip: skip ?? (_) async {}),
-    )))));
+          width: 360,
+          child: VinylDeck(
+              playing: false,
+              enabled: enabled,
+              onLabelLongPress: longPress,
+              onLabelSwipeDown: swipeDown,
+              position: const Duration(seconds: 45),
+              duration: length,
+              cover: const ColoredBox(color: vinylGold),
+              onArmChanged: arm ?? (_) async {},
+              onSeek: seek ?? (_) async {},
+              onSkip: skip ?? (_) async {}),
+        )))));
     await tester.pumpAndSettle();
   }
 
@@ -100,6 +107,116 @@ void main() {
     await drag.up();
     await tester.pumpAndSettle();
     expect(moves.last, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('long press builds nonlinearly and cancellation restores scale',
+      (tester) async {
+    var opened = 0;
+    await pumpDeck(tester, longPress: () => opened++);
+    final record = find.byKey(const ValueKey('vinyl-record'));
+    double scale() => tester
+        .widget<Transform>(
+            find.descendant(of: record, matching: find.byType(Transform)).at(1))
+        .transform
+        .storage[0];
+    final pointer = await tester.startGesture(tester.getCenter(record));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    final early = scale();
+    await tester.pump(const Duration(milliseconds: 100));
+    final later = scale();
+    expect(early, lessThan(1));
+    expect(later, lessThan(early));
+    expect(early - later, greaterThan(1 - early));
+    expect(opened, 0);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(opened, 1);
+    await pointer.up();
+    await tester.pumpAndSettle();
+    expect(scale(), closeTo(1, .001));
+    final cancelled = await tester.startGesture(tester.getCenter(record));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(scale(), lessThan(1));
+    await cancelled.cancel();
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(opened, 1);
+    expect(scale(), closeTo(1, .001));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('downward label pulls dampen and ease back while opening once',
+      (tester) async {
+    var opened = 0;
+    final skips = <int>[];
+    final seeks = <Duration>[];
+    await pumpDeck(tester,
+        swipeDown: () => opened++,
+        skip: (value) async => skips.add(value),
+        seek: (value) async => seeks.add(value));
+    final record = find.byKey(const ValueKey('vinyl-record'));
+    double offset() => tester
+        .widget<Transform>(
+            find.descendant(of: record, matching: find.byType(Transform)).first)
+        .transform
+        .storage[13];
+    final pointer = await tester.startGesture(tester.getCenter(record));
+    await pointer.moveBy(const Offset(0, 80));
+    await tester.pump();
+    final first = offset();
+    await pointer.moveBy(const Offset(0, 80));
+    await tester.pump();
+    final displaced = offset();
+    expect(first, greaterThan(0));
+    expect(displaced, greaterThan(first));
+    expect(displaced - first, lessThan(first));
+    expect(opened, 0);
+    await pointer.up();
+    await tester.pump();
+    expect(offset(), closeTo(displaced, .01));
+    expect(opened, 1);
+    await tester.pump(const Duration(milliseconds: 140));
+    expect(offset(), greaterThan(0));
+    expect(offset(), lessThan(displaced / 2));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(offset(), closeTo(0, .01));
+    expect(skips, isEmpty);
+    expect(seeks, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('reduced motion keeps label gestures without animation',
+      (tester) async {
+    var libraries = 0;
+    var collections = 0;
+    await pumpDeck(tester,
+        reduceMotion: true,
+        longPress: () => libraries++,
+        swipeDown: () => collections++);
+    final record = find.byKey(const ValueKey('vinyl-record'));
+    final pointer = await tester.startGesture(tester.getCenter(record));
+    await tester.pump(const Duration(milliseconds: 250));
+    var transforms = tester
+        .widgetList<Transform>(
+            find.descendant(of: record, matching: find.byType(Transform)))
+        .toList();
+    expect(transforms[1].transform.storage[0], 1);
+    await pointer.moveBy(const Offset(0, 100));
+    await tester.pump();
+    transforms = tester
+        .widgetList<Transform>(
+            find.descendant(of: record, matching: find.byType(Transform)))
+        .toList();
+    expect(transforms[0].transform.storage[13], 0);
+    await pointer.up();
+    await tester.pumpAndSettle();
+    expect(collections, 1);
+    expect(libraries, 0);
+    await tester.longPress(record);
+    await tester.pumpAndSettle();
+    expect(libraries, 1);
     expect(tester.takeException(), isNull);
   });
 

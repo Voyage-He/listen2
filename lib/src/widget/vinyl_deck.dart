@@ -45,15 +45,19 @@ class VinylDeck extends StatefulWidget {
   State<VinylDeck> createState() => _VinylDeckState();
 }
 
-class _VinylDeckState extends State<VinylDeck>
-    with SingleTickerProviderStateMixin {
+class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
   late final _translation = AnimationController.unbounded(vsync: this);
+  late final _pull = AnimationController.unbounded(vsync: this);
+  late final _press = AnimationController(vsync: this);
   double _dragOrigin = 0;
+  double _pullOrigin = 0;
 
   @override
   void dispose() {
     _longPressTimer?.cancel();
     _translation.dispose();
+    _pull.dispose();
+    _press.dispose();
     super.dispose();
   }
 
@@ -94,7 +98,9 @@ class _VinylDeckState extends State<VinylDeck>
     final center = Offset(diameter / 2, diameter / 2);
     final local = position - center;
     _translation.stop();
+    _pull.stop();
     _dragOrigin = _translation.value;
+    _pullOrigin = _pull.value;
     _start = position;
     _end = _start;
     _swiping = local.distance < diameter * .29;
@@ -107,8 +113,14 @@ class _VinylDeckState extends State<VinylDeck>
     if (_start == null || !_available) return;
     _end = position;
     if (_swiping) {
-      final displacement = _dragOrigin + (_end!.dx - _start!.dx) * .18;
+      final movement = _end! - _start!;
+      final displacement = _dragOrigin + movement.dx * .18;
       _translation.value = 24 * displacement / (24 + displacement.abs());
+      final pullingDown = widget.onLabelSwipeDown != null &&
+          movement.dy > movement.dx.abs() &&
+          !MediaQuery.of(context).disableAnimations;
+      final pull = _pullOrigin + math.max(0.0, movement.dy) * .35;
+      _pull.value = pullingDown ? 42 * pull / (42 + pull) : 0;
       setState(() {});
       return;
     }
@@ -154,10 +166,16 @@ class _VinylDeckState extends State<VinylDeck>
   void _cancelRecord() {
     if (MediaQuery.of(context).disableAnimations) {
       _translation.value = 0;
+      _pull.value = 0;
+      _press.value = 0;
     } else {
       _translation.animateTo(0,
           duration: const Duration(milliseconds: 360),
           curve: Curves.easeOutCubic);
+      _pull.animateTo(0,
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeOutCubic);
+      _releasePress();
     }
     setState(() {
       _start = null;
@@ -165,6 +183,16 @@ class _VinylDeckState extends State<VinylDeck>
       _target = null;
     });
     widget.onScrubChanged?.call(null);
+  }
+
+  void _releasePress() {
+    if (MediaQuery.of(context).disableAnimations) {
+      _press.value = 0;
+    } else {
+      _press.animateTo(0,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic);
+    }
   }
 
   @override
@@ -254,6 +282,12 @@ class _VinylDeckState extends State<VinylDeck>
                                       .distance;
                                   if (distance <= diameter * .175 &&
                                       widget.onLabelLongPress != null) {
+                                    if (!MediaQuery.of(context)
+                                        .disableAnimations) {
+                                      _press.animateTo(1,
+                                          duration: kLongPressTimeout,
+                                          curve: Curves.easeInOutCubic);
+                                    }
                                     _longPressTimer =
                                         Timer(kLongPressTimeout, () {
                                       if (!mounted ||
@@ -274,12 +308,14 @@ class _VinylDeckState extends State<VinylDeck>
                                               .distance >
                                           kTouchSlop) {
                                     _longPressTimer?.cancel();
+                                    _releasePress();
                                   }
                                   _moveRecord(event.localPosition, diameter);
                                 },
                                 onPointerUp: (event) {
                                   if (event.pointer != _recordPointer) return;
                                   _longPressTimer?.cancel();
+                                  _releasePress();
                                   _recordPointer = null;
                                   _pressOrigin = null;
                                   if (!_longPressed) _endRecord();
@@ -292,12 +328,20 @@ class _VinylDeckState extends State<VinylDeck>
                                   _cancelRecord();
                                 },
                                 child: AnimatedBuilder(
-                                    animation: _translation,
+                                    animation: Listenable.merge([
+                                      _translation,
+                                      _pull,
+                                      _press,
+                                    ]),
                                     builder: (context, child) =>
                                         Transform.translate(
-                                            offset:
-                                                Offset(_translation.value, 0),
-                                            child: child),
+                                            offset: Offset(_translation.value,
+                                                _pull.value),
+                                            child: Transform.scale(
+                                                scale: 1 -
+                                                    _press.value * .045 -
+                                                    (_pull.value / 42) * .025,
+                                                child: child)),
                                     child: VinylRecord(
                                         playing: widget.playing &&
                                             !widget.busy &&

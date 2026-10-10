@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
@@ -251,7 +252,7 @@ class _PlayerState extends ConsumerState<Player> {
                 _settingsSwipeDistance = 0;
               }
             : null,
-        child: Material(
+        child: _PlayerSurface(
             color: vinylCream,
             child: Column(children: [
               Padding(
@@ -496,4 +497,54 @@ class _PlayerState extends ConsumerState<Player> {
         const SizedBox(height: 6),
         Text(label, style: const TextStyle(color: vinylOlive, fontSize: 10)),
       ]);
+}
+
+class _PlayerSurface extends StatelessWidget {
+  const _PlayerSurface({required this.color, required this.child});
+  final Color color;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Material(
+      color: color,
+      child: Stack(fit: StackFit.expand, children: [
+        const Positioned.fill(
+            child: IgnorePointer(
+                child: ExcludeSemantics(
+                    child: RepaintBoundary(child: _PlayerBackground())))),
+        child,
+      ]));
+}
+
+class _PlayerBackground extends ConsumerWidget {
+  const _PlayerBackground();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final track =
+        ref.watch(playerStateNotifierProvider.select((state) => state.track));
+    if (track == null) return const SizedBox.expand();
+    final cover = ref.watch(trackCoverProvider(track)).valueOrNull;
+    if (cover == null) return const SizedBox.expand();
+    return ClipRect(
+        child: Stack(fit: StackFit.expand, children: [
+      ImageFiltered(
+          imageFilter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
+          child: Transform.scale(
+              scale: 1.15,
+              child: Image.memory(cover,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.expand()))),
+      const DecoratedBox(
+          decoration: BoxDecoration(
+              gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+            Color(0xA6F1EFE7),
+            Color(0xBDF1EFE7),
+            Color(0xDEF1EFE7),
+          ]))),
+    ]));
+  }
 }

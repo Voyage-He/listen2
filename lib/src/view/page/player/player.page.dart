@@ -249,6 +249,7 @@ class _PlayerState extends ConsumerState<Player> {
   Widget build(BuildContext context) {
     final state = ref.watch(playerStateNotifierProvider);
     final track = state.track;
+    final singer = track?.singer.trim() ?? '';
     final playing = state.state == ap.PlayerState.playing;
     final textScaler = MediaQuery.textScalerOf(context);
     return GestureDetector(
@@ -440,20 +441,35 @@ class _PlayerState extends ConsumerState<Player> {
                           SizedBox(
                               key: const ValueKey('player-track-singer'),
                               width: double.infinity,
-                              height: textScaler.scale(13) * 1.4,
+                              height: textScaler.scale(15) * 1.4 + 14,
                               child: Center(
-                                  child: Text(track?.singer ?? '',
-                                      textAlign: TextAlign.center,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      strutStyle: const StrutStyle(
-                                          fontSize: 13,
-                                          height: 1.4,
-                                          forceStrutHeight: true),
-                                      style: const TextStyle(
-                                          color: vinylOlive,
-                                          fontSize: 13,
-                                          height: 1.4)))),
+                                  child: singer.isEmpty
+                                      ? const SizedBox.shrink()
+                                      : Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 14, vertical: 6),
+                                          decoration: BoxDecoration(
+                                              color:
+                                                  vinylCream.withOpacity(.65),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              border: Border.all(
+                                                  color: vinylOlive
+                                                      .withOpacity(.24),
+                                                  width: .8)),
+                                          child: Text(singer,
+                                              textAlign: TextAlign.center,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              strutStyle: const StrutStyle(
+                                                  fontSize: 15,
+                                                  height: 1.4,
+                                                  forceStrutHeight: true),
+                                              style: const TextStyle(
+                                                  color: vinylInk,
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w500,
+                                                  height: 1.4))))),
                           if (_feedback != null) ...[
                             const SizedBox(height: 12),
                             Text(_feedback!,

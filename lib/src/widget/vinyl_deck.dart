@@ -10,7 +10,7 @@ const vinylOlive = Color(0xFF657052);
 const vinylGold = Color(0xFFDBBE7E);
 const vinylRevolution = Duration(seconds: 60);
 
-/// A record's outer grooves scrub; its center label moves the record sideways.
+/// Outer grooves scrub; the center switches tracks and opens the shelf or saves.
 class VinylDeck extends StatefulWidget {
   const VinylDeck(
       {super.key,
@@ -22,12 +22,14 @@ class VinylDeck extends StatefulWidget {
       this.busy = false,
       this.unavailableDirection,
       this.onLabelLongPress,
+      this.onLabelSwipeUp,
       this.onLabelSwipeDown,
       required this.onArmChanged,
       required this.onSeek,
       required this.onSkip,
       this.onScrubChanged});
   final VoidCallback? onLabelLongPress;
+  final VoidCallback? onLabelSwipeUp;
   final VoidCallback? onLabelSwipeDown;
   final bool playing;
   final bool enabled;
@@ -94,37 +96,40 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
   }
 
   void _startRecord(Offset position, double diameter) {
-    if (!_available) return;
+    if (widget.busy) return;
     final center = Offset(diameter / 2, diameter / 2);
     final local = position - center;
+    _swiping = local.distance < diameter * .29;
+    if (!_available && !(_swiping && widget.onLabelSwipeUp != null)) return;
     _translation.stop();
     _pull.stop();
     _dragOrigin = _translation.value;
     _pullOrigin = _pull.value;
     _start = position;
     _end = _start;
-    _swiping = local.distance < diameter * .29;
     _sweep = 0;
     _scrubOrigin = widget.position;
     _lastAngle = math.atan2(local.dy, local.dx);
   }
 
   void _moveRecord(Offset position, double diameter) {
-    if (_start == null || !_available) return;
+    if (_start == null || widget.busy) return;
     _end = position;
     if (_swiping) {
       final movement = _end! - _start!;
       final displacement = _dragOrigin + movement.dx * .18;
       _translation.value = 24 * displacement / (24 + displacement.abs());
-      final pullingDown = widget.onLabelSwipeDown != null &&
-          movement.dy > movement.dx.abs() &&
-          !MediaQuery.of(context).disableAnimations;
-      final pull = _pullOrigin + math.max(0.0, movement.dy) * .35;
-      _pull.value = pullingDown ? 42 * pull / (42 + pull) : 0;
+      final pullingVertically =
+          ((movement.dy > 0 && widget.onLabelSwipeDown != null) ||
+                  (movement.dy < 0 && widget.onLabelSwipeUp != null)) &&
+              movement.dy.abs() > movement.dx.abs() &&
+              !MediaQuery.of(context).disableAnimations;
+      final pull = _pullOrigin + movement.dy * .35;
+      _pull.value = pullingVertically ? 42 * pull / (42 + pull.abs()) : 0;
       setState(() {});
       return;
     }
-    if (widget.duration <= Duration.zero) return;
+    if (!_available || widget.duration <= Duration.zero) return;
     final local = position - Offset(diameter / 2, diameter / 2);
     if (local.distance < diameter * .18) return;
     final angle = math.atan2(local.dy, local.dx);
@@ -148,8 +153,17 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
         movement.dy.abs() < movement.dx.abs() * .65;
     final swipeDown =
         _swiping && movement.dy >= 48 && movement.dx.abs() < movement.dy * .65;
+    final swipeUp = _swiping &&
+        movement.dy <= -48 &&
+        movement.dx.abs() < -movement.dy * .65;
     if (target != null && !swipe) _pendingSeek = target;
     _cancelRecord();
+    if (widget.busy) return;
+    if (swipeUp && widget.onLabelSwipeUp != null) {
+      HapticFeedback.selectionClick();
+      widget.onLabelSwipeUp!();
+      return;
+    }
     if (!_available) return;
     if (swipeDown && widget.onLabelSwipeDown != null) {
       HapticFeedback.selectionClick();
@@ -232,7 +246,8 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                       width: diameter,
                       height: diameter,
                       child: Semantics(
-                          label: '唱片，外圈旋转调整播放位置，中心左右拨动换曲，中心下滑收藏到歌单',
+                          label:
+                              '唱片，外圈旋转调整播放位置，中心左右拨动换曲，中心上滑打开唱片架，中心下滑收藏到歌单，长按中心打开歌单',
                           onLongPress:
                               widget.busy ? null : widget.onLabelLongPress,
                           value: '${(_target ?? widget.position).inSeconds} 秒',
@@ -256,7 +271,7 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                           child: RawGestureDetector(
                               // Own the gesture from pointer-down, before the
                               // enclosing page's vertical scroll recognizer.
-                              gestures: (_available || (!widget.busy && widget.onLabelLongPress != null))
+                              gestures: (_available || (!widget.busy && (widget.onLabelLongPress != null || widget.onLabelSwipeUp != null)))
                                   ? {
                                       EagerGestureRecognizer:
                                           GestureRecognizerFactoryWithHandlers<
@@ -340,7 +355,8 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                                             child: Transform.scale(
                                                 scale: 1 -
                                                     _press.value * .045 -
-                                                    (_pull.value / 42) * .025,
+                                                    (_pull.value.abs() / 42) *
+                                                        .025,
                                                 child: child)),
                                     child: VinylRecord(
                                         playing: widget.playing &&

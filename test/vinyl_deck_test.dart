@@ -8,6 +8,7 @@ void main() {
       {bool enabled = true,
       bool reduceMotion = false,
       VoidCallback? longPress,
+      VoidCallback? swipeUp,
       VoidCallback? swipeDown,
       Duration length = const Duration(minutes: 3),
       Future<void> Function(bool)? arm,
@@ -26,6 +27,7 @@ void main() {
               playing: false,
               enabled: enabled,
               onLabelLongPress: longPress,
+              onLabelSwipeUp: swipeUp,
               onLabelSwipeDown: swipeDown,
               position: const Duration(seconds: 45),
               duration: length,
@@ -147,41 +149,84 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('downward label pulls dampen and ease back while opening once',
+  for (final direction in [-1, 1]) {
+    testWidgets(
+        'vertical label pulls dampen and ease back in direction $direction',
+        (tester) async {
+      var opened = 0;
+      final skips = <int>[];
+      final seeks = <Duration>[];
+      await pumpDeck(tester,
+          swipeUp: direction < 0 ? () => opened++ : null,
+          swipeDown: direction > 0 ? () => opened++ : null,
+          skip: (value) async => skips.add(value),
+          seek: (value) async => seeks.add(value));
+      final record = find.byKey(const ValueKey('vinyl-record'));
+      double offset() =>
+          tester
+              .widget<Transform>(find
+                  .descendant(of: record, matching: find.byType(Transform))
+                  .first)
+              .transform
+              .storage[13] *
+          direction;
+      final pointer = await tester.startGesture(tester.getCenter(record));
+      await pointer.moveBy(Offset(0, 80.0 * direction));
+      await tester.pump();
+      final first = offset();
+      await pointer.moveBy(Offset(0, 80.0 * direction));
+      await tester.pump();
+      final displaced = offset();
+      expect(first, greaterThan(0));
+      expect(displaced, greaterThan(first));
+      expect(displaced - first, lessThan(first));
+      expect(opened, 0);
+      await pointer.up();
+      await tester.pump();
+      expect(offset(), closeTo(displaced, .01));
+      expect(opened, 1);
+      await tester.pump(const Duration(milliseconds: 140));
+      expect(offset(), greaterThan(0));
+      expect(offset(), lessThan(displaced / 2));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(offset(), closeTo(0, .01));
+      expect(skips, isEmpty);
+      expect(seeks, isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets(
+      'upward label swipe opens an empty shelf and ignores cancellation',
       (tester) async {
-    var opened = 0;
+    var shelves = 0;
+    var libraries = 0;
+    var collections = 0;
     final skips = <int>[];
     final seeks = <Duration>[];
     await pumpDeck(tester,
-        swipeDown: () => opened++,
+        enabled: false,
+        longPress: () => libraries++,
+        swipeUp: () => shelves++,
+        swipeDown: () => collections++,
         skip: (value) async => skips.add(value),
         seek: (value) async => seeks.add(value));
     final record = find.byKey(const ValueKey('vinyl-record'));
-    double offset() => tester
-        .widget<Transform>(
-            find.descendant(of: record, matching: find.byType(Transform)).first)
-        .transform
-        .storage[13];
+    await tester.drag(record, const Offset(0, -30));
+    await tester.pumpAndSettle();
+    expect(shelves, 0);
     final pointer = await tester.startGesture(tester.getCenter(record));
-    await pointer.moveBy(const Offset(0, 80));
-    await tester.pump();
-    final first = offset();
-    await pointer.moveBy(const Offset(0, 80));
-    await tester.pump();
-    final displaced = offset();
-    expect(first, greaterThan(0));
-    expect(displaced, greaterThan(first));
-    expect(displaced - first, lessThan(first));
-    expect(opened, 0);
-    await pointer.up();
-    await tester.pump();
-    expect(offset(), closeTo(displaced, .01));
-    expect(opened, 1);
-    await tester.pump(const Duration(milliseconds: 140));
-    expect(offset(), greaterThan(0));
-    expect(offset(), lessThan(displaced / 2));
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(offset(), closeTo(0, .01));
+    await pointer.moveBy(const Offset(0, -100));
+    await pointer.cancel();
+    await tester.pumpAndSettle();
+    expect(shelves, 0);
+    await tester.drag(record, const Offset(0, -100));
+    await tester.pumpAndSettle();
+    expect(shelves, 1);
+    await tester.drag(record, const Offset(0, 100));
+    await tester.pumpAndSettle();
+    expect(collections, 0);
+    expect(libraries, 0);
     expect(skips, isEmpty);
     expect(seeks, isEmpty);
     expect(tester.takeException(), isNull);

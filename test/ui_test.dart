@@ -167,7 +167,7 @@ void main() {
     expect(tester.getRect(find.byType(SingleChildScrollView)).bottom,
         lessThanOrEqualTo(810));
 
-    await tester.drag(find.text('LISTEN 2'), const Offset(-120, 0));
+    await tester.drag(find.text('LISTEN 2'), const Offset(120, 0));
     await tester.pumpAndSettle();
     expect(tester.getRect(find.byType(PageSurface)),
         const Rect.fromLTWH(0, 0, 390, 844));
@@ -311,8 +311,8 @@ void main() {
     await tester.pumpAndSettle();
     playback.select(tracks.first);
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byTooltip('唱片架'));
-    await tester.tap(find.byTooltip('唱片架'));
+    await tester.drag(
+        find.byKey(const ValueKey('vinyl-record')), const Offset(0, -100));
     await tester.pumpAndSettle();
     final shelf = find.byType(ListView);
     expect(find.descendant(of: shelf, matching: find.text('Record 0')),
@@ -394,7 +394,6 @@ void main() {
         ])
           key: tester.getRect(find.byKey(ValueKey(key))),
       };
-      final controls = tester.getRect(find.byTooltip('选唱片'));
       final time = tester.getRect(find.text('0:00').first);
 
       for (final track in <Track?>[...tracks, null]) {
@@ -405,7 +404,6 @@ void main() {
               reason:
                   'Switching to ${track?.title} must not move ${entry.key}');
         }
-        expect(tester.getRect(find.byTooltip('选唱片')), controls);
         expect(tester.getRect(find.text('0:00').first), time);
         expect(scroll.position.pixels, offset);
         expect(scroll.position.maxScrollExtent, extent);
@@ -556,6 +554,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(Player), findsOneWidget);
     expect(find.byTooltip('设置'), findsNothing);
+    expect(find.byTooltip('选唱片'), findsNothing);
+    expect(find.byTooltip('唱片架'), findsNothing);
     expect(find.byTooltip('返回'), findsNothing);
     await tester.longPress(find.byKey(const ValueKey('vinyl-record')));
     await tester.pumpAndSettle();
@@ -574,13 +574,39 @@ void main() {
     await tester.drag(heading, const Offset(-40, 0));
     await tester.pumpAndSettle();
     expect(find.text('音乐与备份'), findsNothing);
+    expect(find.byType(Search), findsNothing);
     await tester.drag(
         find.byKey(const ValueKey('vinyl-record')), const Offset(-120, 0));
     await tester.pumpAndSettle();
     expect(find.text('音乐与备份'), findsNothing);
-    await tester.drag(heading, const Offset(-120, 0));
+
+    await tester.drag(
+        find.byKey(const ValueKey('vinyl-record')), const Offset(0, -100));
+    await tester.pumpAndSettle();
+    expect(find.text('唱片架'), findsOneWidget);
+    expect(find.text('从歌单选择音乐，唱片会按顺序放入这里'), findsOneWidget);
+    Navigator.of(tester.element(find.text('唱片架'))).pop();
+    await tester.pumpAndSettle();
+
+    await tester.drag(heading, const Offset(120, 0));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.getRect(find.byType(PageSurface)).left, lessThan(0),
+        reason: 'Settings must enter from the left');
     await tester.pumpAndSettle();
     expect(find.text('音乐与备份'), findsOneWidget);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Player), findsOneWidget);
+
+    await tester.drag(heading, const Offset(-120, 0));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.getRect(find.byType(Search)).left, greaterThan(0),
+        reason: 'Search must enter from the right');
+    await tester.pumpAndSettle();
+    expect(find.text('发现音乐'), findsOneWidget);
+    expect(find.text('音乐与备份'), findsNothing);
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(find.byType(Player), findsOneWidget);

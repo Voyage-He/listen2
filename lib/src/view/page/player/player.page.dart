@@ -29,7 +29,27 @@ class _PlayerState extends ConsumerState<Player> {
   String? _feedback;
   int? _unavailableDirection;
   Timer? _edgeFeedbackTimer;
-  double _settingsSwipeDistance = 0;
+  double _pageSwipeDistance = 0;
+
+  void _openSidePage(int direction) {
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    Navigator.of(context).push(PageRouteBuilder<void>(
+      transitionDuration:
+          reduceMotion ? Duration.zero : const Duration(milliseconds: 360),
+      reverseTransitionDuration:
+          reduceMotion ? Duration.zero : const Duration(milliseconds: 280),
+      pageBuilder: (_, __, ___) =>
+          direction > 0 ? const Option() : const Search(),
+      transitionsBuilder: (_, animation, __, child) => SlideTransition(
+          position: Tween<Offset>(
+                  begin: Offset(direction > 0 ? -1 : 1, 0), end: Offset.zero)
+              .animate(CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                  reverseCurve: Curves.easeInCubic)),
+          child: child),
+    ));
+  }
 
   @override
   void dispose() {
@@ -239,19 +259,20 @@ class _PlayerState extends ConsumerState<Player> {
     return GestureDetector(
         behavior: HitTestBehavior.opaque,
         onHorizontalDragStart:
-            widget.isHome ? (_) => _settingsSwipeDistance = 0 : null,
+            widget.isHome ? (_) => _pageSwipeDistance = 0 : null,
         onHorizontalDragUpdate: widget.isHome
-            ? (details) => _settingsSwipeDistance += details.delta.dx
+            ? (details) => _pageSwipeDistance += details.delta.dx
             : null,
         onHorizontalDragEnd: widget.isHome
             ? (_) {
-                if (_settingsSwipeDistance.abs() >= 72) {
-                  Navigator.of(context)
-                      .push(MaterialPageRoute(builder: (_) => const Option()));
+                if (_pageSwipeDistance.abs() >= 72) {
+                  _openSidePage(_pageSwipeDistance > 0 ? 1 : -1);
                 }
-                _settingsSwipeDistance = 0;
+                _pageSwipeDistance = 0;
               }
             : null,
+        onHorizontalDragCancel:
+            widget.isHome ? () => _pageSwipeDistance = 0 : null,
         child: _PlayerSurface(
             color: vinylCream,
             child: Column(children: [
@@ -323,13 +344,14 @@ class _PlayerState extends ConsumerState<Player> {
                                                       height: 1.8,
                                                       color: vinylInk)),
                                               SizedBox(height: 16),
-                                              Text('04   向下滑动中央标签，选择歌单收藏当前歌曲。',
+                                              Text(
+                                                  '04   中央标签上滑打开唱片架，下滑收藏当前歌曲。\n       长按中央标签，打开歌单列表。',
                                                   style: TextStyle(
                                                       height: 1.8,
                                                       color: vinylInk)),
                                               SizedBox(height: 16),
                                               Text(
-                                                  '05   在首页唱片外的区域向左或向右滑动，进入设置。',
+                                                  '05   在首页唱片外的区域右滑进入设置，左滑进入搜索。',
                                                   style: TextStyle(
                                                       height: 1.8,
                                                       color: vinylInk)),
@@ -385,6 +407,7 @@ class _PlayerState extends ConsumerState<Player> {
                               onArmChanged: _moveArm,
                               onSkip: _skip,
                               onLabelLongPress: _showPlaylists,
+                              onLabelSwipeUp: _showQueue,
                               onLabelSwipeDown: _showSavePlaylists,
                               onSeek: (value) => _run(() => ref
                                   .read(playerStateNotifierProvider.notifier)
@@ -457,7 +480,7 @@ class _PlayerState extends ConsumerState<Player> {
                                         ])),
                               ]),
                           const SizedBox(height: 12),
-                          Text(_feedback ?? '外圈旋转定位 · 中央左右换曲、下滑收藏',
+                          Text(_feedback ?? '中央左右换曲 · 上滑唱片架 · 下滑收藏',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                   color: _feedback == null
@@ -465,38 +488,10 @@ class _PlayerState extends ConsumerState<Player> {
                                       : const Color(0xFF9B593D),
                                   fontSize: 11,
                                   height: 1.6)),
-                          const SizedBox(height: 26),
-                          Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                _accessory(
-                                    Icons.library_music_outlined,
-                                    '选唱片',
-                                    () => Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                            builder: (_) => const Search()))),
-                                _accessory(Icons.queue_music_rounded, '唱片架',
-                                    _showQueue),
-                              ]),
                         ]))),
               )),
             ])));
   }
-
-  Widget _accessory(IconData icon, String label, VoidCallback? onTap) =>
-      Column(children: [
-        IconButton(
-            tooltip: label,
-            onPressed: onTap,
-            icon: Icon(icon),
-            color: vinylInk,
-            disabledColor: const Color(0xFFB7B9AA),
-            style: IconButton.styleFrom(
-                backgroundColor: const Color(0xFFE7E6DC),
-                padding: const EdgeInsets.all(14))),
-        const SizedBox(height: 6),
-        Text(label, style: const TextStyle(color: vinylOlive, fontSize: 10)),
-      ]);
 }
 
 class _PlayerSurface extends StatelessWidget {

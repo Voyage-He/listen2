@@ -9,6 +9,7 @@ import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
 import 'package:listen2/src/view/page/home/home.page.dart';
 import 'package:listen2/src/view/page/player/player.page.dart';
 import 'package:listen2/src/view/page/playlist/playlist.dart';
+import 'package:listen2/src/view/page/search/search.page.dart';
 import 'package:listen2/src/widget/app_style.dart';
 import 'package:listen2/src/widget/progress_bar.dart';
 import 'package:listen2/main.dart' show ListenApp;
@@ -42,7 +43,73 @@ class _SingleTrackQueue extends CurrentPlaylistNotifier {
       const CurrentPlaylistState(index: 0, playlist: ['one']);
 }
 
+class _SearchResults extends SearchResult {
+  _SearchResults(this.tracks);
+  final List<Track> tracks;
+
+  @override
+  Future<List<Track>> build() async => tracks;
+}
+
+class _SearchQueue extends CurrentPlaylistNotifier {
+  String? playedId;
+
+  @override
+  CurrentPlaylistState build() =>
+      const CurrentPlaylistState(index: 0, playlist: ['old']);
+
+  @override
+  Future<void> play(String trackId, List<String> playlistTrackIds,
+      {bool autoplay = true}) async {
+    playedId = trackId;
+    state = CurrentPlaylistState(
+        index: playlistTrackIds.indexOf(trackId),
+        playlist: List.of(playlistTrackIds));
+  }
+}
+
 void main() {
+  testWidgets('search playback replaces queue with all results in order',
+      (tester) async {
+    final tracks = [
+      Track('first', 'First result', 'Artist', ''),
+      Track('second', 'Second result', 'Artist', ''),
+      Track('third', 'Third result', 'Artist', ''),
+    ];
+    final queue = _SearchQueue();
+    final container = ProviderContainer(overrides: [
+      searchResultProvider.overrideWith(() => _SearchResults(tracks)),
+      currentPlaylistNotifierProvider.overrideWith(() => queue),
+      playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
+      for (final track in tracks)
+        trackCoverProvider(track)
+            .overrideWith((ref) async => throw StateError('no cover')),
+    ]);
+    addTearDown(container.dispose);
+    await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+            theme: AppStyle.theme, home: const Scaffold(body: Search()))));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Second result'));
+    await tester.pumpAndSettle();
+    final state = container.read(currentPlaylistNotifierProvider);
+    expect(queue.playedId, 'second');
+    expect(state.playlist, ['first', 'second', 'third']);
+    expect(state.index, 1);
+    expect(state.hasNext, isTrue);
+    expect(container.read(playlistIdsNotifierProvider('favorite')), isEmpty);
+
+    await tester.tap(find.text('Third result'));
+    await tester.pumpAndSettle();
+    expect(queue.playedId, 'third');
+    expect(container.read(currentPlaylistNotifierProvider).index, 2);
+    expect(container.read(currentPlaylistNotifierProvider).playlist,
+        ['first', 'second', 'third']);
+    expect(tester.takeException(), isNull);
+  });
+
   Future<void> pumpPage(WidgetTester tester, Widget page) async {
     tester.view.physicalSize = const Size(320, 640);
     tester.view.devicePixelRatio = 1;

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:listen2/src/provider/global/player.dart';
+import 'package:listen2/src/provider/global/current_playlist.dart';
 import 'package:listen2/src/provider/repo/bilibili.dart';
 import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
 import 'package:listen2/src/provider/repo/track.dart';
@@ -115,7 +115,7 @@ class Search extends ConsumerWidget {
                     itemCount: tracks.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, index) =>
-                        _searchItem(ref, tracks[index])),
+                        _searchItem(context, ref, tracks[index], tracks)),
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (_, __) => EmptyState(
                 icon: Icons.wifi_off_rounded,
@@ -129,7 +129,8 @@ class Search extends ConsumerWidget {
         ]));
   }
 
-  Widget _searchItem(WidgetRef ref, Track track) {
+  Widget _searchItem(
+      BuildContext context, WidgetRef ref, Track track, List<Track> results) {
     final isFavorite =
         ref.watch(playlistIdsNotifierProvider('favorite')).contains(track.bvid);
     return Material(
@@ -137,8 +138,17 @@ class Search extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () =>
-              ref.read(playerStateNotifierProvider.notifier).playTrack(track),
+          onTap: () async {
+            try {
+              await ref.read(currentPlaylistNotifierProvider.notifier).play(
+                  track.bvid, results.map((result) => result.bvid).toList());
+            } catch (_) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('暂时无法播放，请稍后重试')));
+              }
+            }
+          },
           child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(children: [

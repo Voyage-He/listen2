@@ -70,12 +70,8 @@ class AddPlaylistNameNotifier extends _$AddPlaylistNameNotifier {
   }
 }
 
-class PlaylistPage extends ConsumerWidget {
-  final _actionPopupKey = GlobalKey<PopupState>();
-  final _playlistSettingPopupKey = GlobalKey<PopupState>();
-  final _addPlaylistPopupKey = GlobalKey<PopupState>();
-
-  PlaylistPage(
+class PlaylistPage extends ConsumerStatefulWidget {
+  const PlaylistPage(
       {super.key,
       required this.playlistName,
       this.returnToPlayerOnPlay = false});
@@ -83,8 +79,44 @@ class PlaylistPage extends ConsumerWidget {
   final String playlistName;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    var tracks = ref.watch(sortedListProvider(playlistName));
+  ConsumerState<PlaylistPage> createState() => _PlaylistPageState();
+}
+
+class _PlaylistPageState extends ConsumerState<PlaylistPage> {
+  final _actionPopupKey = GlobalKey<PopupState>();
+  final _playlistSettingPopupKey = GlobalKey<PopupState>();
+  final _addPlaylistPopupKey = GlobalKey<PopupState>();
+  final _searchController = TextEditingController();
+  String _query = '';
+  String get playlistName => widget.playlistName;
+  bool get returnToPlayerOnPlay => widget.returnToPlayerOnPlay;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant PlaylistPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.playlistName != playlistName) {
+      _searchController.clear();
+      _query = '';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final allTracks = ref.watch(sortedListProvider(playlistName));
+    final query = _query.trim().toLowerCase();
+    final tracks = allTracks.whenData((value) => query.isEmpty
+        ? value
+        : value
+            .where((track) =>
+                track.title.toLowerCase().contains(query) ||
+                track.singer.toLowerCase().contains(query))
+            .toList());
     final reverse = ref.watch(reverseProvider);
     final isRemote =
         ref.watch(bilibiliPlaylistsProvider).containsKey(playlistName);
@@ -146,16 +178,44 @@ class PlaylistPage extends ConsumerWidget {
                 color: AppStyle.accent, size: 18),
             const SizedBox(width: 8),
             Text(
-                '${ref.watch(playlistIdsNotifierProvider(playlistName)).length} 首歌曲',
+                query.isEmpty
+                    ? '${ref.watch(playlistIdsNotifierProvider(playlistName)).length} 首歌曲'
+                    : '${tracks.valueOrNull?.length ?? 0} / ${ref.watch(playlistIdsNotifierProvider(playlistName)).length} 首歌曲',
                 style: Theme.of(context).textTheme.bodyMedium),
           ])),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+        child: TextField(
+          controller: _searchController,
+          onChanged: (value) => setState(() => _query = value),
+          decoration: InputDecoration(
+            hintText: '搜索歌单内的歌曲或歌手',
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: _query.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: '清空搜索',
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => setState(() {
+                      _searchController.clear();
+                      _query = '';
+                    }),
+                  ),
+          ),
+        ),
+      ),
       Expanded(
           child: tracks.when(
         data: (value) => value.isEmpty
-            ? scrollableState(const EmptyState(
-                icon: Icons.queue_music_rounded,
-                title: '歌单还是空的',
-                message: '搜索喜欢的音乐，将它们收藏到这里'))
+            ? scrollableState(query.isNotEmpty
+                ? const EmptyState(
+                    icon: Icons.search_off_rounded,
+                    title: '没有找到匹配的歌曲',
+                    message: '试试其他关键词，或清空搜索')
+                : const EmptyState(
+                    icon: Icons.queue_music_rounded,
+                    title: '歌单还是空的',
+                    message: '搜索喜欢的音乐，将它们收藏到这里'))
             : refreshable(ListView.separated(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),

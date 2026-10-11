@@ -45,6 +45,11 @@ class _Ids extends PlaylistIdsNotifier {
   List<String> build(String playlistName) => [];
 }
 
+class _PlaylistSearchIds extends PlaylistIdsNotifier {
+  @override
+  List<String> build(String playlistName) => ['first', 'second', 'third'];
+}
+
 class _WritableIds extends _Ids {
   @override
   Future<void> add(String id) async {
@@ -156,6 +161,67 @@ class _SearchQueue extends CurrentPlaylistNotifier {
 }
 
 void main() {
+  testWidgets(
+      'playlist search filters locally and preserves the playback queue',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final queue = _SearchQueue();
+    var loads = 0;
+    final container = ProviderContainer(overrides: [
+      bilibiliPlaylistsProvider.overrideWith(_Sources.new),
+      playlistNamesProvider.overrideWith(_Names.new),
+      playlistIdsNotifierProvider('favorite')
+          .overrideWith(_PlaylistSearchIds.new),
+      currentPlaylistNotifierProvider.overrideWith(() => queue),
+      playlistTracksProvider('favorite').overrideWith((ref) async {
+        loads++;
+        return [
+          Track('first', '夜曲', '周杰伦', ''),
+          Track('second', 'Hello', 'Adele', ''),
+          Track('third', '晴天', '周杰伦', ''),
+        ];
+      }),
+    ]);
+    addTearDown(container.dispose);
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(
+          theme: AppStyle.theme,
+          home: const Scaffold(body: PlaylistPage(playlistName: 'favorite'))),
+    ));
+    await tester.pumpAndSettle();
+    final search = find.byType(TextField);
+    await tester.enterText(search, ' 周杰伦 ');
+    await tester.pumpAndSettle();
+    expect(find.text('夜曲'), findsOneWidget);
+    expect(find.text('晴天'), findsOneWidget);
+    expect(find.text('Hello'), findsNothing);
+    expect(find.text('2 / 3 首歌曲'), findsOneWidget);
+    await tester.tap(find.byTooltip('倒序排列'));
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.text('晴天')).dy,
+        lessThan(tester.getTopLeft(find.text('夜曲')).dy));
+    await tester.enterText(search, 'hELLo');
+    await tester.pumpAndSettle();
+    expect(find.text('Hello'), findsOneWidget);
+    expect(find.text('夜曲'), findsNothing);
+    await tester.tap(find.text('Hello'));
+    await tester.pumpAndSettle();
+    expect(queue.playedId, 'second');
+    expect(queue.state.playlist, ['first', 'second', 'third']);
+    await tester.enterText(search, '找不到');
+    await tester.pumpAndSettle();
+    expect(find.text('没有找到匹配的歌曲'), findsOneWidget);
+    await tester.tap(find.byTooltip('清空搜索'));
+    await tester.pumpAndSettle();
+    expect(find.text('Hello'), findsOneWidget);
+    expect(find.text('夜曲'), findsOneWidget);
+    expect(find.text('晴天'), findsOneWidget);
+    expect(loads, 1);
+  });
+
   testWidgets('settings preview and player background follow both sliders',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -710,7 +776,7 @@ void main() {
 
   testWidgets('empty playlist keeps its back navigation available',
       (tester) async {
-    await pumpPage(tester, PlaylistPage(playlistName: 'favorite'));
+    await pumpPage(tester, const PlaylistPage(playlistName: 'favorite'));
     expect(find.text('歌单还是空的'), findsOneWidget);
     expect(find.byTooltip('返回'), findsOneWidget);
     expect(tester.takeException(), isNull);

@@ -12,6 +12,27 @@ final bilibiliPlaylistsProvider =
 
 class BilibiliPlaylists extends Notifier<Map<String, String>> {
   static const _key = 'bilibiliPlaylistSources';
+  final _refreshes = <String, Future<void>>{};
+
+  Future<void> refresh(String name) {
+    return _refreshes.putIfAbsent(name, () async {
+      try {
+        final mediaId = state[name];
+        if (mediaId == null) return;
+        final tracks = await fetchBilibiliPlaylist(ref, mediaId);
+        // A deleted or replaced source must not be restored by a late response.
+        if (state[name] != mediaId) return;
+        await ref
+            .read(playlistIdsNotifierProvider(name).notifier)
+            .set(tracks.map((track) => track.bvid).toList());
+        for (final track in tracks) {
+          ref.invalidate(trackProvider(track.bvid));
+        }
+      } finally {
+        _refreshes.remove(name);
+      }
+    });
+  }
 
   @override
   Map<String, String> build() {
@@ -67,6 +88,16 @@ Future<List<Track>> fetchBilibiliPlaylist(Ref ref, String mediaId) async {
           video.pic.startsWith('//') ? 'https:${video.pic}' : video.pic))
       .toList();
   final box = await Hive.openBox<Track>('tracks');
-  await box.putAll({for (final track in tracks) track.bvid: track});
+  final changed = <String, Track>{};
+  for (final track in tracks) {
+    final cached = box.get(track.bvid);
+    if (cached == null ||
+        cached.title != track.title ||
+        cached.singer != track.singer ||
+        cached.pictureUrl != track.pictureUrl) {
+      changed[track.bvid] = track;
+    }
+  }
+  if (changed.isNotEmpty) await box.putAll(changed);
   return tracks;
 }

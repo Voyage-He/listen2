@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:listen2/src/provider/global/storage.dart';
 import 'package:listen2/src/widget/app_style.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/global/current_playlist.dart';
@@ -19,14 +21,13 @@ Future<List<Track>> playlistTracks(
     PlaylistTracksRef ref, String playlistName) async {
   final mediaId = ref.watch(bilibiliPlaylistsProvider)[playlistName];
   if (mediaId != null) {
-    var disposed = false;
-    ref.onDispose(() => disposed = true);
-    final tracks = await fetchBilibiliPlaylist(ref, mediaId);
-    if (disposed) return tracks;
-    await ref
-        .read(playlistIdsNotifierProvider(playlistName).notifier)
-        .set(tracks.map((track) => track.bvid).toList());
-    return tracks;
+    final ids = ref.watch(playlistIdsNotifierProvider(playlistName));
+    final box = await Hive.openBox<Track>('tracks');
+    final storage = ref.read(hiveStorageProvider).requireValue;
+    if (!storage.value.containsKey('${playlistName}playlistTracksId') ||
+        ids.any((id) => !box.containsKey(id))) {
+      await ref.read(bilibiliPlaylistsProvider.notifier).refresh(playlistName);
+    }
   }
   List<String> ids = ref.watch(playlistIdsNotifierProvider(playlistName));
 
@@ -85,6 +86,36 @@ class PlaylistPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     var tracks = ref.watch(sortedListProvider(playlistName));
     final reverse = ref.watch(reverseProvider);
+    final isRemote =
+        ref.watch(bilibiliPlaylistsProvider).containsKey(playlistName);
+
+    Future<void> refresh() async {
+      try {
+        await ref
+            .read(bilibiliPlaylistsProvider.notifier)
+            .refresh(playlistName);
+        ref.invalidate(playlistTracksProvider(playlistName));
+        await ref.read(playlistTracksProvider(playlistName).future);
+      } catch (_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('刷新失败，已保留本地歌单，请稍后重试')));
+        }
+      }
+    }
+
+    Widget refreshable(Widget child) =>
+        isRemote ? RefreshIndicator(onRefresh: refresh, child: child) : child;
+
+    Widget scrollableState(Widget child) => refreshable(
+          LayoutBuilder(
+              builder: (context, constraints) => ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      SizedBox(height: constraints.maxHeight, child: child)
+                    ],
+                  )),
+        );
 
     final main = Column(children: [
       PageHeading(playlistName == 'favorite' ? '我喜欢的音乐' : playlistName,
@@ -121,24 +152,25 @@ class PlaylistPage extends ConsumerWidget {
       Expanded(
           child: tracks.when(
         data: (value) => value.isEmpty
-            ? const EmptyState(
+            ? scrollableState(const EmptyState(
                 icon: Icons.queue_music_rounded,
                 title: '歌单还是空的',
-                message: '搜索喜欢的音乐，将它们收藏到这里')
-            : ListView.separated(
+                message: '搜索喜欢的音乐，将它们收藏到这里'))
+            : refreshable(ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                 itemCount: value.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 6),
                 itemBuilder: (context, index) =>
-                    _trackItem(index, value[index], context, ref)),
-        error: (_, __) => EmptyState(
+                    _trackItem(index, value[index], context, ref))),
+        error: (_, __) => scrollableState(EmptyState(
             icon: Icons.wifi_off_rounded,
             title: '歌曲加载失败',
             message: '请检查网络后重试',
             action: TextButton(
                 onPressed: () =>
                     ref.invalidate(playlistTracksProvider(playlistName)),
-                child: const Text('重试'))),
+                child: const Text('重试')))),
         loading: () => const Center(child: CircularProgressIndicator()),
       )),
     ]);

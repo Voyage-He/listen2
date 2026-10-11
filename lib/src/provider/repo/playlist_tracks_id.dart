@@ -33,6 +33,7 @@ class PlaylistIdsNotifier extends _$PlaylistIdsNotifier {
   }
 
   Future<void> set(List<String> ids) async {
+    if (listEquals(state, ids) && ref.storage.value.containsKey(_key)) return;
     await ref.storage.value.put(_key, ids);
     state = List.of(ids);
   }

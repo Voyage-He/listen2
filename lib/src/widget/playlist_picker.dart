@@ -5,6 +5,7 @@ import 'package:listen2/src/provider/repo/playlist_names.dart';
 import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
 import 'package:listen2/src/widget/vinyl_deck.dart';
 import 'package:listen2/src/widget/add_bilibili_playlist.dart';
+import 'package:listen2/src/view/page/option/bilibili_account.page.dart';
 
 class PlaylistPicker extends ConsumerStatefulWidget {
   const PlaylistPicker({super.key, this.trackId});
@@ -66,6 +67,14 @@ class _PlaylistPickerState extends ConsumerState<PlaylistPicker> {
                           color: vinylInk,
                           fontSize: 22,
                           fontWeight: FontWeight.w600))),
+              IconButton(
+                  tooltip: 'Bilibili 收藏夹',
+                  icon: const Icon(Icons.cloud_outlined),
+                  onPressed: _changingName != null
+                      ? null
+                      : () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) =>
+                              BilibiliAccountPage(trackId: trackId)))),
               IconButton(
                   tooltip: '添加歌单',
                   icon: const Icon(Icons.add_rounded),

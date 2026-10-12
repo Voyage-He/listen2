@@ -8,6 +8,7 @@ import 'package:listen2/src/playlist_backup.dart';
 import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
 import 'package:listen2/src/provider/global/background_settings.dart';
 import 'package:listen2/src/widget/player_background.dart';
+import 'package:listen2/src/view/page/option/bilibili_account.page.dart';
 
 class Option extends ConsumerStatefulWidget {
   const Option({super.key});
@@ -88,6 +89,13 @@ class _OptionState extends ConsumerState<Option> {
             child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 children: [
+              _backupTile(
+                  Icons.account_circle_outlined,
+                  'Bilibili 账号与收藏夹',
+                  '扫码登录，访问私密收藏夹并管理收藏',
+                  () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const BilibiliAccountPage()))),
+              const SizedBox(height: 28),
               Text('背景外观', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
               const Text('调节歌曲封面的背景效果，修改即时生效。',

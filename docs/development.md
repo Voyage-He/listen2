@@ -12,6 +12,18 @@ flutter test
 
 仓库不提交 `*.g.dart`，首次运行或修改 Riverpod / Hive 模型后都需要执行代码生成。
 
+## Bilibili 登录与收藏夹
+
+设置 → Bilibili 账号与收藏夹 → 获取登录二维码，用 Bilibili 手机客户端扫码确认。歌曲收藏面板的云朵图标打开该歌曲的 Bilibili 收藏状态，可直接添加或移除；账号页面支持新建收藏夹和导入自己的私密收藏夹。
+
+接口依据本地 `bilibili-API-collect` 的 `docs/login/login_action/QR.md`、`docs/login/login_info.md`、`docs/login/exit.md`、`docs/fav/info.md`、`docs/fav/action.md` 和 `docs/video/action.md`。网页扫码轮询的四种状态均有处理，登录成功后通过 `/x/web-interface/nav` 校验身份，收藏写入携带 `bili_jct` 的 CSRF 值。
+
+2026-10-12 实测公共二维码生成接口返回的扫码地址使用 `account.bilibili.com`；实现同时接受这个域名和文档中的 `passport.bilibili.com`，只接受 HTTPS。
+
+登录 Cookie 和 refresh token 由 `flutter_secure_storage` 单独保存，iOS 使用 Keychain，Android 使用加密 SharedPreferences，Windows 使用插件的系统加密存储。Android 已禁用应用自动备份以避免加密凭据和设备密钥被分别恢复；应用内收藏导出仍可使用。匿名访客 Cookie 沿用原来的 Hive 缓存。当前保留 refresh token 但尚未接入 `cookie_refresh.md` 的自动续期，登录过期时重新扫码。
+
+接口和 UI 测试不使用真实账号。真机验收需检查：扫码等待/确认/超时、切到 Bilibili 后返回、重启恢复、私密收藏夹导入、创建公开/私密收藏夹、收藏/取消收藏，以及退出后重启。二维码需要手机客户端扫描，可在另一台设备上展示。
+
 ## 运行 iOS
 
 需要 macOS、完整 Xcode（仅 Command Line Tools 不够）、Xcode 的 iOS SDK / 模拟器，以及 CocoaPods。

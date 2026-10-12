@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'bilibili_account.dart';
 
 import 'package:hive/hive.dart';
 import 'package:http_parser/http_parser.dart';
@@ -14,7 +15,8 @@ class BilibiliClient {
   bool hasCookie = false; // hasCookie的用处？
   Box box;
 
-  BilibiliClient(this.box);
+  BilibiliClient(this.box, {this.account});
+  final BilibiliAccountClient? account;
 
   Future<void> init() async {
     hasCookie = false;
@@ -181,11 +183,22 @@ class BilibiliClient {
     return [bvid, title, author, pic];
   }
 
-  Future<Response> getFavoritePage(String mediaId, int page) => Requests.get(
-        'https://api.bilibili.com/x/v3/fav/resource/list',
-        queryParameters: {'media_id': mediaId, 'ps': '20', 'pn': '$page'},
-        headers: {'User-Agent': 'Mozilla/5.0'},
-      );
+  Future<Response> getFavoritePage(String mediaId, int page) async {
+    await account?.restoreSession();
+    if (account?.hasSession == true) {
+      return account!.getFavoritePage(mediaId, page);
+    }
+    return Requests.get(
+      'https://api.bilibili.com/x/v3/fav/resource/list',
+      queryParameters: {'media_id': mediaId, 'ps': '20', 'pn': '$page'},
+      // Auth cookies are held in secure storage, never in Requests' cache.
+      persistCookies: false,
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Referer': 'https://www.bilibili.com/',
+      },
+    );
+  }
 
   /// Reads every page in collection order, using the same API as Subsonic.
   Future<List<BilibiliVideoModel>> getFavoriteList(String mediaId) async {
@@ -201,6 +214,10 @@ class BilibiliClient {
             'Bilibili favorites failed: HTTP ${response.statusCode}');
       }
       final body = response.json();
+      if (body['code'] == -101 || body['code'] == -111) {
+        await account?.clearSession();
+        throw const BilibiliApiException(-101, '登录已失效，请重新扫码登录');
+      }
       if (body['code'] != 0 || body['data'] is! Map) {
         throw StateError('Bilibili favorites failed: ${body['message']}');
       }

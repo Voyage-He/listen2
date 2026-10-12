@@ -1,3 +1,4 @@
 library music_api;
 
 export 'src/bilibili_client.dart';
+export 'src/bilibili_account.dart';

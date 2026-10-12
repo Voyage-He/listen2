@@ -124,6 +124,24 @@ void main() {
     expect(container.read(playlistIdsNotifierProvider('favorite')), isEmpty);
   });
 
+  test('one song can be persisted in a new playlist and favorites', () async {
+    await container.read(bilibiliPlaylistsProvider.notifier).add('新歌单', '');
+    await container
+        .read(playlistIdsNotifierProvider('新歌单').notifier)
+        .add('new-track');
+    await container
+        .read(playlistIdsNotifierProvider('favorite').notifier)
+        .add('new-track');
+    container.dispose();
+    container = createContainer();
+    await container.read(hiveStorageProvider.future);
+    expect(await container.read(playlistNamesProvider.future),
+        ['favorite', '新歌单']);
+    expect(container.read(playlistIdsNotifierProvider('新歌单')), ['new-track']);
+    expect(container.read(playlistIdsNotifierProvider('favorite')),
+        ['existing', 'new-track']);
+  });
+
   test('opening remote playlist uses persisted content until explicit refresh',
       () async {
     await container.read(bilibiliPlaylistsProvider.notifier).add('常听', '12345');

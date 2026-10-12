@@ -15,32 +15,36 @@ class PlaylistPicker extends ConsumerStatefulWidget {
 }
 
 class _PlaylistPickerState extends ConsumerState<PlaylistPicker> {
-  String? _removingName;
+  String? _changingName;
   String? _message;
   bool _failed = false;
 
-  Future<void> _remove(String name) async {
+  Future<void> _setSaved(String name, bool saved) async {
     final trackId = widget.trackId;
-    if (trackId == null || _removingName != null) return;
+    if (trackId == null || _changingName != null) return;
     setState(() {
-      _removingName = name;
+      _changingName = name;
       _message = null;
       _failed = false;
     });
     try {
-      await ref
-          .read(playlistIdsNotifierProvider(name).notifier)
-          .delete(trackId);
+      final playlist = ref.read(playlistIdsNotifierProvider(name).notifier);
+      if (saved) {
+        await playlist.add(trackId);
+      } else {
+        await playlist.delete(trackId);
+      }
       if (!mounted) return;
-      setState(() => _message = '已从「${name == 'favorite' ? '我喜欢的' : name}」移除');
+      final title = name == 'favorite' ? '我喜欢的' : name;
+      setState(() => _message = saved ? '已收藏到「$title」' : '已从「$title」移除');
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _message = '取消收藏失败，请重试';
+        _message = saved ? '收藏失败，请重试' : '取消收藏失败，请重试';
         _failed = true;
       });
     } finally {
-      if (mounted) setState(() => _removingName = null);
+      if (mounted) setState(() => _changingName = null);
     }
   }
 
@@ -65,13 +69,16 @@ class _PlaylistPickerState extends ConsumerState<PlaylistPicker> {
               IconButton(
                   tooltip: '添加歌单',
                   icon: const Icon(Icons.add_rounded),
-                  onPressed: _removingName != null
+                  onPressed: _changingName != null
                       ? null
                       : () async {
                           final name = await showAddBilibiliPlaylist(context,
                               localOnly: trackId != null);
-                          if (name != null && context.mounted) {
+                          if (name == null || !context.mounted) return;
+                          if (trackId == null) {
                             Navigator.pop(context, name);
+                          } else {
+                            await _setSaved(name, true);
                           }
                         }),
             ])),
@@ -132,7 +139,7 @@ class _PlaylistPickerState extends ConsumerState<PlaylistPicker> {
                                               fontWeight: FontWeight.w600)),
                                       subtitle: Text(
                                           '${ids.length} 首歌曲${saved ? ' · 已收藏' : ''}'),
-                                      trailing: _removingName == name
+                                      trailing: _changingName == name
                                           ? const SizedBox(
                                               width: 24,
                                               height: 24,
@@ -143,9 +150,10 @@ class _PlaylistPickerState extends ConsumerState<PlaylistPicker> {
                                               ? IconButton(
                                                   tooltip: '取消收藏',
                                                   onPressed:
-                                                      _removingName != null
+                                                      _changingName != null
                                                           ? null
-                                                          : () => _remove(name),
+                                                          : () => _setSaved(
+                                                              name, false),
                                                   color: vinylOlive,
                                                   icon: const Icon(
                                                       Icons
@@ -157,11 +165,11 @@ class _PlaylistPickerState extends ConsumerState<PlaylistPicker> {
                                                       ? Icons.chevron_right_rounded
                                                       : Icons.add_rounded,
                                                   color: vinylOlive),
-                                      onTap: _removingName != null
+                                      onTap: _changingName != null
                                           ? null
-                                          : saved
-                                              ? () => _remove(name)
-                                              : () => Navigator.of(context).pop(name)));
+                                          : trackId == null
+                                              ? () => Navigator.of(context).pop(name)
+                                              : () => _setSaved(name, !saved)));
                             });
                   },
                   loading: () =>

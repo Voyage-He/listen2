@@ -5,9 +5,7 @@ import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/global/player.dart';
 import 'package:listen2/src/provider/global/current_playlist.dart';
-import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
 import 'package:listen2/src/provider/repo/track.dart';
-import 'package:listen2/src/provider/repo/bilibili_playlists.dart';
 import 'package:listen2/src/view/page/search/search.page.dart';
 import 'package:listen2/src/widget/track_cover.widget.dart';
 import 'package:listen2/src/widget/player_background.dart';
@@ -240,7 +238,7 @@ class _PlayerState extends ConsumerState<Player> {
     final track = ref.read(playerStateNotifierProvider).track;
     if (track == null) return;
     setState(() => _feedback = null);
-    final name = await showModalBottomSheet<String>(
+    await showModalBottomSheet<void>(
       context: context,
       backgroundColor: vinylCream,
       showDragHandle: true,
@@ -249,22 +247,6 @@ class _PlayerState extends ConsumerState<Player> {
           height: MediaQuery.sizeOf(context).height * .65,
           child: PlaylistPicker(trackId: track.bvid)),
     );
-    if (!mounted || name == null) return;
-    if (ref.read(bilibiliPlaylistsProvider).containsKey(name)) {
-      setState(() => _feedback = 'Bilibili 导入歌单不支持添加歌曲');
-      return;
-    }
-    try {
-      await ref
-          .read(playlistIdsNotifierProvider(name).notifier)
-          .add(track.bvid);
-      if (mounted) {
-        setState(
-            () => _feedback = '已收藏到「${name == 'favorite' ? '我喜欢的' : name}」');
-      }
-    } catch (_) {
-      if (mounted) setState(() => _feedback = '收藏失败，请重试');
-    }
   }
 
   @override

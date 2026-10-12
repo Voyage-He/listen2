@@ -81,6 +81,20 @@ class _RemovingIds extends _WritableIds {
   }
 }
 
+class _SavingIds extends _WritableIds {
+  int calls = 0;
+  bool fail = false;
+  Completer<void>? pending;
+
+  @override
+  Future<void> add(String id) async {
+    calls++;
+    if (pending != null) await pending!.future;
+    if (fail) throw StateError('storage unavailable');
+    await super.add(id);
+  }
+}
+
 class _CollectionNames extends PlaylistNames {
   @override
   Future<List<String>> build() async => ['favorite', '日常', 'Bili 歌单'];
@@ -89,6 +103,23 @@ class _CollectionNames extends PlaylistNames {
 class _CollectionSources extends _Sources {
   @override
   Map<String, String> build() => {'Bili 歌单': '12345'};
+}
+
+class _MutableCollectionNames extends PlaylistNames {
+  @override
+  Future<List<String>> build() async => ['favorite', '日常'];
+
+  @override
+  Future<void> add(String name) async {
+    state = AsyncData([...state.requireValue, name]);
+  }
+}
+
+class _CreatingSources extends _Sources {
+  @override
+  Future<void> add(String name, String mediaId) async {
+    await ref.read(playlistNamesProvider.notifier).add(name);
+  }
 }
 
 class _Sources extends BilibiliPlaylists {
@@ -334,7 +365,7 @@ void main() {
   });
 
   testWidgets(
-      'collection picker removes and re-adds songs without changing playback',
+      'collection picker stays open for multiple additions and removals',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -374,8 +405,16 @@ void main() {
     await tester.tap(find.text('我喜欢的'));
     await tester.pumpAndSettle();
     expect(favorite.state, ['one']);
-    await openCollection();
+    expect(find.text('收藏到歌单'), findsOneWidget);
+    expect(find.text('已收藏到「我喜欢的」'), findsOneWidget);
     expect(find.text('1 首歌曲 · 已收藏'), findsOneWidget);
+    await tester.tap(find.text('日常'));
+    await tester.pumpAndSettle();
+    expect(daily.state, ['one']);
+    expect(favorite.state, ['one']);
+    expect(find.text('收藏到歌单'), findsOneWidget);
+    expect(find.text('1 首歌曲 · 已收藏'), findsNWidgets(2));
+    expect(find.text('已收藏到「日常」'), findsOneWidget);
     final container =
         ProviderScope.containerOf(tester.element(find.byType(Player)));
     final playback = container.read(player.playerStateNotifierProvider);
@@ -385,21 +424,17 @@ void main() {
         find.descendant(of: favoriteRow, matching: find.byTooltip('取消收藏')));
     await tester.pumpAndSettle();
     expect(favorite.state, isEmpty);
-    expect(daily.state, isEmpty);
+    expect(daily.state, ['one']);
     expect(find.text('收藏到歌单'), findsOneWidget);
     expect(find.text('已从「我喜欢的」移除'), findsOneWidget);
-    expect(find.text('1 首歌曲 · 已收藏'), findsNothing);
+    expect(find.text('1 首歌曲 · 已收藏'), findsOneWidget);
     expect(container.read(player.playerStateNotifierProvider), same(playback));
     await tester.tap(find.text('我喜欢的'));
     await tester.pumpAndSettle();
     expect(favorite.state, ['one']);
-    await openCollection();
-    await tester.tap(find.text('日常'));
-    await tester.pumpAndSettle();
-    expect(daily.state, ['one']);
-    expect(favorite.state, ['one']);
+    expect(find.text('收藏到歌单'), findsOneWidget);
+    expect(find.text('1 首歌曲 · 已收藏'), findsNWidgets(2));
     expect(find.byType(PlaylistPage), findsNothing);
-    await openCollection();
     await tester.tap(find.text('日常'));
     await tester.pumpAndSettle();
     expect(daily.state, isEmpty);
@@ -411,6 +446,92 @@ void main() {
     await tester.tap(find.descendant(
         of: find.byType(AlertDialog), matching: find.text('取消')));
     await tester.pumpAndSettle();
+    expect(find.text('收藏到歌单'), findsOneWidget);
+    await tester.tapAt(const Offset(8, 80));
+    await tester.pumpAndSettle();
+    expect(find.text('收藏到歌单'), findsNothing);
+    expect(container.read(player.playerStateNotifierProvider), same(playback));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('failed addition stays open and can be retried', (tester) async {
+    final ids = _SavingIds()
+      ..fail = true
+      ..pending = Completer<void>();
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          playlistNamesProvider.overrideWith(_CollectionNames.new),
+          bilibiliPlaylistsProvider.overrideWith(_CollectionSources.new),
+          playlistIdsNotifierProvider('favorite').overrideWith(() => ids),
+          playlistIdsNotifierProvider('日常').overrideWith(_Ids.new),
+        ],
+        child: MaterialApp(
+            theme: AppStyle.theme,
+            home: const Scaffold(body: PlaylistPicker(trackId: 'one')))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('我喜欢的'));
+    await tester.pump();
+    expect(ids.calls, 1);
+    await tester.tap(find.text('我喜欢的'));
+    await tester.pump();
+    expect(ids.calls, 1);
+    ids.pending!.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('收藏失败，请重试'), findsOneWidget);
+    expect(find.text('收藏到歌单'), findsOneWidget);
+    expect(find.byTooltip('取消收藏'), findsNothing);
+    expect(ids.state, isEmpty);
+    ids
+      ..fail = false
+      ..pending = null;
+    await tester.tap(find.text('我喜欢的'));
+    await tester.pumpAndSettle();
+    expect(ids.calls, 2);
+    expect(ids.state, ['one']);
+    expect(find.text('收藏到歌单'), findsOneWidget);
+    expect(find.text('1 首歌曲 · 已收藏'), findsOneWidget);
+    expect(find.text('已收藏到「我喜欢的」'), findsOneWidget);
+    expect(find.text('收藏失败，请重试'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('new playlist collects the song and keeps the picker open',
+      (tester) async {
+    final created = _WritableIds();
+    final favorite = _WritableIds();
+    final daily = _WritableIds();
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          playlistNamesProvider.overrideWith(_MutableCollectionNames.new),
+          bilibiliPlaylistsProvider.overrideWith(_CreatingSources.new),
+          playlistIdsNotifierProvider('favorite').overrideWith(() => favorite),
+          playlistIdsNotifierProvider('日常').overrideWith(() => daily),
+          playlistIdsNotifierProvider('新歌单').overrideWith(() => created),
+        ],
+        child: MaterialApp(
+            theme: AppStyle.theme,
+            home: const Scaffold(body: PlaylistPicker(trackId: 'one')))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('添加歌单'));
+    await tester.pumpAndSettle();
+    expect(find.byType(TextFormField), findsOneWidget);
+    await tester.enterText(find.byType(TextFormField), '新歌单');
+    await tester.tap(find.text('添加'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.text('收藏到歌单'), findsOneWidget);
+    expect(find.text('新歌单'), findsOneWidget);
+    expect(find.text('已收藏到「新歌单」'), findsOneWidget);
+    expect(created.state, ['one']);
+    await tester.tap(find.text('我喜欢的'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('日常'));
+    await tester.pumpAndSettle();
+    expect(find.text('收藏到歌单'), findsOneWidget);
+    expect(favorite.state, ['one']);
+    expect(daily.state, ['one']);
+    expect(created.state, ['one']);
+    expect(find.byTooltip('取消收藏'), findsNWidgets(3));
     expect(tester.takeException(), isNull);
   });
 

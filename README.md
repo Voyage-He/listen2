@@ -1,5 +1,7 @@
 # Tacto
 
+<img src="assets/branding/tacto-logo.png" alt="Tacto 应用图标：深墨绿黑胶唱片与暖金唱臂" width="128" height="128">
+
 Feel the music in your hands. 把喜欢的音乐，放上你的唱片机。
 
 Tacto 是一款强调拟真操作的无按钮音乐播放器，基于 Flutter 构建，以黑胶唱片机为灵感。拨动唱片切歌、转动外圈调整进度、移动唱针控制播放，让操作像摆弄一台真实唱片机一样自然；音乐搜索与歌单收藏则融入唱片架的交互中。音乐内容来自 Bilibili，项目包含 Android、iOS 和 Windows 平台工程。

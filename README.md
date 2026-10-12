@@ -1,8 +1,21 @@
-# Tacto
+<p align="center">
+  <img src="assets/branding/tacto-logo.png" alt="Tacto 应用图标：深墨绿黑胶唱片与暖金唱臂" width="160" height="160">
+</p>
 
-<img src="assets/branding/tacto-logo.png" alt="Tacto 应用图标：深墨绿黑胶唱片与暖金唱臂" width="128" height="128">
+<h1 align="center">Tacto</h1>
 
-Feel the music in your hands. 把喜欢的音乐，放上你的唱片机。
+<p align="center">
+  <strong>Feel the music in your hands.</strong><br>
+  把喜欢的音乐，放上你的唱片机。
+</p>
+
+<p align="center">
+  <a href=".fvmrc"><img src="https://img.shields.io/badge/Flutter-3.24.1-02569B?style=flat-square&amp;logo=flutter&amp;logoColor=white" alt="Flutter 3.24.1"></a>
+  <a href="pubspec.yaml"><img src="https://img.shields.io/badge/Version-0.5.2-657153?style=flat-square" alt="Version 0.5.2"></a>
+  <a href="docs/development.md"><img src="https://img.shields.io/badge/Platforms-Android%20%7C%20iOS%20%7C%20Windows-59646B?style=flat-square" alt="Platforms: Android, iOS, Windows"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-BSD--3--Clause-C49A45?style=flat-square" alt="License: BSD 3-Clause"></a>
+  <a href="#一台可以随身带走的唱片机"><img src="https://img.shields.io/badge/Controls-Buttonless-BC7354?style=flat-square" alt="Controls: Buttonless"></a>
+</p>
 
 Tacto 是一款强调拟真操作的无按钮音乐播放器，基于 Flutter 构建，以黑胶唱片机为灵感。拨动唱片切歌、转动外圈调整进度、移动唱针控制播放，让操作像摆弄一台真实唱片机一样自然；音乐搜索与歌单收藏则融入唱片架的交互中。音乐内容来自 Bilibili，项目包含 Android、iOS 和 Windows 平台工程。
 

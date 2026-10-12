@@ -13,6 +13,7 @@ import 'package:listen2/src/widget/track_cover.widget.dart';
 import 'package:listen2/src/widget/player_background.dart';
 import 'package:listen2/src/widget/vinyl_deck.dart';
 import 'package:listen2/src/widget/playlist_picker.dart';
+import 'package:listen2/src/widget/player_tutorial.dart';
 import 'package:listen2/src/view/page/playlist/playlist.dart';
 import 'package:listen2/src/view/page/option/option.page.dart';
 
@@ -30,6 +31,26 @@ class _PlayerState extends ConsumerState<Player> {
   int? _unavailableDirection;
   Timer? _edgeFeedbackTimer;
   double _pageSwipeDistance = 0;
+
+  Future<void> _showInstructions() async {
+    final startTutorial = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: vinylCream,
+      showDragHandle: true,
+      isScrollControlled: true,
+      constraints:
+          BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .9),
+      builder: (context) => PlayerInstructions(
+          onStartTutorial: () => Navigator.of(context).pop(true)),
+    );
+    if (!mounted || startTutorial != true) return;
+    await showDialog<void>(
+      context: context,
+      useSafeArea: false,
+      barrierDismissible: false,
+      builder: (_) => PlayerTutorial(isHome: widget.isHome),
+    );
+  }
 
   void _openSidePage(int direction) {
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
@@ -300,64 +321,7 @@ class _PlayerState extends ConsumerState<Player> {
                     ])),
                     IconButton(
                         tooltip: '操作说明',
-                        onPressed: () => showModalBottomSheet<void>(
-                            context: context,
-                            backgroundColor: vinylCream,
-                            showDragHandle: true,
-                            isScrollControlled: true,
-                            builder: (_) => const SafeArea(
-                                child: SingleChildScrollView(
-                                    child: Padding(
-                                        padding:
-                                            EdgeInsets.fromLTRB(28, 4, 28, 36),
-                                        child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text('像使用唱机一样聆听',
-                                                  style: TextStyle(
-                                                      fontSize: 22,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color: vinylInk)),
-                                              SizedBox(height: 24),
-                                              Text(
-                                                  '01   长按中央标签打开歌单，选择歌曲。\n       也可以在首页唱片外左滑进入搜索，选择音乐。',
-                                                  style: TextStyle(
-                                                      height: 1.8,
-                                                      color: vinylInk)),
-                                              SizedBox(height: 16),
-                                              Text(
-                                                  '02   把右下方唱针向上移到唱片上，开始播放。\n       向下移回支架，暂停播放。也可以轻点唱臂。',
-                                                  style: TextStyle(
-                                                      height: 1.8,
-                                                      color: vinylInk)),
-                                              SizedBox(height: 16),
-                                              Text(
-                                                  '03   沿外圈沟槽顺时针旋转快进，逆时针快退。\n       每转一圈调整 60 秒，松手后定位。',
-                                                  style: TextStyle(
-                                                      height: 1.8,
-                                                      color: vinylInk)),
-                                              SizedBox(height: 16),
-                                              Text(
-                                                  '04   在中央标签上向左拨换下一曲，向右拨换上一曲。\n       唱片架中的音乐按歌单顺序播放。',
-                                                  style: TextStyle(
-                                                      height: 1.8,
-                                                      color: vinylInk)),
-                                              SizedBox(height: 16),
-                                              Text(
-                                                  '05   中央标签上滑打开唱片架，下滑收藏当前歌曲。\n       在收藏列表中选择本地歌单或「我喜欢的」。',
-                                                  style: TextStyle(
-                                                      height: 1.8,
-                                                      color: vinylInk)),
-                                              SizedBox(height: 16),
-                                              Text(
-                                                  '06   在首页唱片外的区域右滑进入设置，左滑进入搜索。',
-                                                  style: TextStyle(
-                                                      height: 1.8,
-                                                      color: vinylInk)),
-                                            ]))))),
+                        onPressed: _showInstructions,
                         icon: const Icon(Icons.info_outline_rounded,
                             color: vinylOlive, size: 22)),
                   ])),

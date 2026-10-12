@@ -21,6 +21,7 @@ import 'package:listen2/src/view/page/search/search.page.dart';
 import 'package:listen2/src/widget/app_style.dart';
 import 'package:listen2/src/widget/progress_bar.dart';
 import 'package:listen2/src/widget/vinyl_deck.dart';
+import 'package:listen2/src/widget/player_tutorial.dart';
 import 'package:listen2/main.dart' show ListenApp;
 import 'package:listen2/src/provider/global/main.dart';
 import 'package:listen2/src/provider/global/background_settings.dart';
@@ -796,6 +797,33 @@ void main() {
     await tester.tap(find.byTooltip('操作说明'));
     await tester.pumpAndSettle();
     expect(find.text('像使用唱机一样聆听'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('instructions launch and replay tutorial without changing music',
+      (tester) async {
+    await pumpPage(tester, const Player(isHome: true));
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(Player)));
+    final playback = container.read(player.playerStateNotifierProvider);
+    final favorites =
+        List.of(container.read(playlistIdsNotifierProvider('favorite')));
+    for (var attempt = 0; attempt < 2; attempt++) {
+      await tester.tap(find.byTooltip('操作说明'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('开始引导教程'));
+      await tester.pumpAndSettle();
+      expect(find.byType(PlayerTutorial), findsOneWidget);
+      expect(find.text('第 1 / 7 步'), findsOneWidget);
+      expect(find.text('像使用唱机一样聆听'), findsNothing);
+      await tester.tap(find.byTooltip('退出教程'));
+      await tester.pumpAndSettle();
+      expect(find.byType(PlayerTutorial), findsNothing);
+      expect(
+          container.read(player.playerStateNotifierProvider), same(playback));
+      expect(
+          container.read(playlistIdsNotifierProvider('favorite')), favorites);
+    }
     expect(tester.takeException(), isNull);
   });
 

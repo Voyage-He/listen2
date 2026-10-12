@@ -140,21 +140,17 @@ class _PlaylistPickerState extends ConsumerState<PlaylistPicker> {
                                                   strokeWidth: 2,
                                                   color: vinylOlive))
                                           : saved
-                                              ? Tooltip(
-                                                  message: '取消收藏',
-                                                  child: TextButton.icon(
-                                                    onPressed: _removingName !=
-                                                            null
-                                                        ? null
-                                                        : () => _remove(name),
-                                                    style: TextButton.styleFrom(
-                                                        foregroundColor:
-                                                            vinylOlive),
-                                                    icon: const Icon(
-                                                        Icons.close_rounded,
-                                                        size: 18),
-                                                    label: const Text('取消'),
-                                                  ),
+                                              ? IconButton(
+                                                  tooltip: '取消收藏',
+                                                  onPressed:
+                                                      _removingName != null
+                                                          ? null
+                                                          : () => _remove(name),
+                                                  color: vinylOlive,
+                                                  icon: const Icon(
+                                                      Icons
+                                                          .remove_circle_outline_rounded,
+                                                      size: 24),
                                                 )
                                               : Icon(
                                                   trackId == null

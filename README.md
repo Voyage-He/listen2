@@ -1,8 +1,8 @@
-# Listen 2
+# Tacto
 
-把喜欢的音乐，放上你的唱片机。
+Feel the music in your hands. 把喜欢的音乐，放上你的唱片机。
 
-Listen 2 是一款基于 Flutter 的音乐播放器，以黑胶唱片机为灵感，将音乐搜索、歌单收藏和播放操作融入唱片、唱臂与唱片架的交互中。音乐内容来自 Bilibili，项目包含 Android、iOS 和 Windows 平台工程。
+Tacto 是一款强调拟真操作的无按钮音乐播放器，基于 Flutter 构建，以黑胶唱片机为灵感。拨动唱片切歌、转动外圈调整进度、移动唱针控制播放，让操作像摆弄一台真实唱片机一样自然；音乐搜索与歌单收藏则融入唱片架的交互中。音乐内容来自 Bilibili，项目包含 Android、iOS 和 Windows 平台工程。
 
 ## 使用声明与免责声明
 
@@ -20,7 +20,7 @@ Listen 2 是一款基于 Flutter 的音乐播放器，以黑胶唱片机为灵�
 
 | 黑胶唱片机 | 唱片架 · 播放队列 |
 | :---: | :---: |
-| <img src="docs/screenshots/player.png" alt="Listen 2 黑胶唱片机界面，展示歌曲封面、唱臂与歌曲信息" width="300"> | <img src="docs/screenshots/queue.png" alt="Listen 2 唱片架界面，展示当前播放队列" width="300"> |
+| <img src="docs/screenshots/player.png" alt="Tacto 黑胶唱片机界面，展示歌曲封面、唱臂与歌曲信息" width="300"> | <img src="docs/screenshots/queue.png" alt="Tacto 唱片架界面，展示当前播放队列" width="300"> |
 
 ## 一台可以随身带走的唱片机
 

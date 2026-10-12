@@ -22,6 +22,7 @@ import 'package:listen2/src/widget/app_style.dart';
 import 'package:listen2/src/widget/progress_bar.dart';
 import 'package:listen2/src/widget/vinyl_deck.dart';
 import 'package:listen2/src/widget/player_tutorial.dart';
+import 'package:listen2/src/widget/playlist_picker.dart';
 import 'package:listen2/main.dart' show ListenApp;
 import 'package:listen2/src/provider/global/main.dart';
 import 'package:listen2/src/provider/global/background_settings.dart';
@@ -55,6 +56,28 @@ class _WritableIds extends _Ids {
   @override
   Future<void> add(String id) async {
     if (!state.contains(id)) state = [...state, id];
+  }
+
+  @override
+  Future<void> delete(String id) async {
+    state = state.where((value) => value != id).toList();
+  }
+}
+
+class _RemovingIds extends _WritableIds {
+  int calls = 0;
+  bool fail = false;
+  Completer<void>? pending;
+
+  @override
+  List<String> build(String playlistName) => ['one', 'two'];
+
+  @override
+  Future<void> delete(String id) async {
+    calls++;
+    if (pending != null) await pending!.future;
+    if (fail) throw StateError('storage unavailable');
+    await super.delete(id);
   }
 }
 
@@ -310,7 +333,8 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('label swipe down saves to local playlists and favorites',
+  testWidgets(
+      'collection picker removes and re-adds songs without changing playback',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -352,6 +376,20 @@ void main() {
     expect(favorite.state, ['one']);
     await openCollection();
     expect(find.text('1 首歌曲 · 已收藏'), findsOneWidget);
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(Player)));
+    final playback = container.read(player.playerStateNotifierProvider);
+    final favoriteRow =
+        find.ancestor(of: find.text('我喜欢的'), matching: find.byType(ListTile));
+    await tester.tap(
+        find.descendant(of: favoriteRow, matching: find.byTooltip('取消收藏')));
+    await tester.pumpAndSettle();
+    expect(favorite.state, isEmpty);
+    expect(daily.state, isEmpty);
+    expect(find.text('收藏到歌单'), findsOneWidget);
+    expect(find.text('已从「我喜欢的」移除'), findsOneWidget);
+    expect(find.text('1 首歌曲 · 已收藏'), findsNothing);
+    expect(container.read(player.playerStateNotifierProvider), same(playback));
     await tester.tap(find.text('我喜欢的'));
     await tester.pumpAndSettle();
     expect(favorite.state, ['one']);
@@ -362,11 +400,67 @@ void main() {
     expect(favorite.state, ['one']);
     expect(find.byType(PlaylistPage), findsNothing);
     await openCollection();
+    await tester.tap(find.text('日常'));
+    await tester.pumpAndSettle();
+    expect(daily.state, isEmpty);
+    expect(favorite.state, ['one']);
+    expect(find.text('已从「日常」移除'), findsOneWidget);
     await tester.tap(find.byTooltip('添加歌单'));
     await tester.pumpAndSettle();
     expect(find.byType(TextFormField), findsOneWidget);
-    await tester.tap(find.text('取消'));
+    await tester.tap(find.descendant(
+        of: find.byType(AlertDialog), matching: find.text('取消')));
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('failed removal stays saved and prevents duplicate requests',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final ids = _RemovingIds()
+      ..fail = true
+      ..pending = Completer<void>();
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          playlistNamesProvider.overrideWith(_CollectionNames.new),
+          bilibiliPlaylistsProvider.overrideWith(_CollectionSources.new),
+          playlistIdsNotifierProvider('favorite').overrideWith(() => ids),
+          playlistIdsNotifierProvider('日常').overrideWith(_Ids.new),
+        ],
+        child: MaterialApp(
+            theme: AppStyle.theme,
+            builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: const TextScaler.linear(1.6)),
+                child: child!),
+            home: const Scaffold(body: PlaylistPicker(trackId: 'one')))));
+    await tester.pumpAndSettle();
+    expect(find.text('Bili 歌单'), findsNothing);
+    await tester.tap(find.byTooltip('取消收藏'));
+    await tester.pump();
+    expect(ids.calls, 1);
+    expect(ids.state, ['one', 'two']);
+    await tester.tap(find.text('我喜欢的'));
+    await tester.pump();
+    expect(ids.calls, 1);
+    ids.pending!.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('取消收藏失败，请重试'), findsOneWidget);
+    expect(ids.state, ['one', 'two']);
+    expect(find.text('2 首歌曲 · 已收藏'), findsOneWidget);
+    ids
+      ..fail = false
+      ..pending = null;
+    await tester.tap(find.byTooltip('取消收藏'));
+    await tester.pumpAndSettle();
+    expect(ids.calls, 2);
+    expect(ids.state, ['two']);
+    expect(find.text('1 首歌曲'), findsOneWidget);
+    expect(find.text('已从「我喜欢的」移除'), findsOneWidget);
+    expect(find.byTooltip('取消收藏'), findsNothing);
+    expect(find.text('取消收藏失败，请重试'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

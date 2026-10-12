@@ -99,6 +99,31 @@ void main() {
         container.read(playlistIdsNotifierProvider('常听')), ['first', 'second']);
   });
 
+  test('removing a song persists only in the selected local playlist',
+      () async {
+    await container
+        .read(playlistIdsNotifierProvider('日常').notifier)
+        .set(['existing', 'other']);
+    await container
+        .read(playlistIdsNotifierProvider('favorite').notifier)
+        .delete('existing');
+    expect(container.read(playlistIdsNotifierProvider('favorite')), isEmpty);
+    expect(container.read(playlistIdsNotifierProvider('日常')),
+        ['existing', 'other']);
+    container.dispose();
+    container = createContainer();
+    await container.read(hiveStorageProvider.future);
+    expect(container.read(playlistIdsNotifierProvider('favorite')), isEmpty);
+    await container
+        .read(playlistIdsNotifierProvider('日常').notifier)
+        .delete('existing');
+    container.dispose();
+    container = createContainer();
+    await container.read(hiveStorageProvider.future);
+    expect(container.read(playlistIdsNotifierProvider('日常')), ['other']);
+    expect(container.read(playlistIdsNotifierProvider('favorite')), isEmpty);
+  });
+
   test('opening remote playlist uses persisted content until explicit refresh',
       () async {
     await container.read(bilibiliPlaylistsProvider.notifier).add('常听', '12345');

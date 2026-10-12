@@ -239,6 +239,7 @@ class _PlayerState extends ConsumerState<Player> {
   Future<void> _showSavePlaylists() async {
     final track = ref.read(playerStateNotifierProvider).track;
     if (track == null) return;
+    setState(() => _feedback = null);
     final name = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: vinylCream,

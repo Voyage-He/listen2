@@ -181,6 +181,30 @@ class _SingleTrackPlayer extends player.PlayerStateNotifier {
   player.PlayerState build() => player.PlayerState(track: _singleTrack);
 }
 
+class _TonearmPlayer extends player.PlayerStateNotifier {
+  final moves = <bool>[];
+
+  @override
+  player.PlayerState build() => player.PlayerState(
+        track: _singleTrack,
+        state: ap.PlayerState.paused,
+        now: const Duration(seconds: 45),
+        length: const Duration(minutes: 3),
+      );
+
+  @override
+  Future<void> resume() async {
+    moves.add(true);
+    state = state.copyWith(state: ap.PlayerState.playing);
+  }
+
+  @override
+  Future<void> pause() async {
+    moves.add(false);
+    state = state.copyWith(state: ap.PlayerState.paused);
+  }
+}
+
 class _SeekingPlayer extends player.PlayerStateNotifier {
   _SeekingPlayer(this.playbackState);
   final ap.PlayerState playbackState;
@@ -1067,6 +1091,61 @@ void main() {
       await drag.cancel();
       await tester.pumpAndSettle();
     }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'home player reserves slow arm drags and still navigates from blank areas',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final playback = _TonearmPlayer();
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+          player.playerStateNotifierProvider.overrideWith(() => playback),
+          currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),
+          trackCoverProvider(_singleTrack)
+              .overrideWith((ref) async => throw StateError('no cover')),
+        ],
+        child: MaterialApp(
+          theme: AppStyle.theme,
+          builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: true),
+              child: child!),
+          home: const Scaffold(body: Player(isHome: true)),
+        )));
+    await tester.pumpAndSettle();
+    final rect = tester.getRect(find.byType(VinylDeck));
+    final geometry = VinylDeckGeometry(rect.size);
+    final parked = rect.topLeft + geometry.parkedTip;
+    final landed = rect.topLeft + geometry.tip(1, .25);
+    final scroll =
+        tester.state<ScrollableState>(find.byType(Scrollable)).position;
+    Future<void> dragArm(Offset start, Offset end) async {
+      final drag = await tester.startGesture(start);
+      for (var index = 1; index <= 20; index++) {
+        await drag.moveTo(Offset.lerp(start, end, index / 20)!);
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await drag.up();
+      await tester.pumpAndSettle();
+      expect(find.byType(Search), findsNothing);
+      expect(find.text('背景外观'), findsNothing);
+      expect(scroll.pixels, 0);
+      expect(find.byType(Player), findsOneWidget);
+    }
+
+    await dragArm(parked, parked + const Offset(-110, 0));
+    expect(playback.moves, isEmpty);
+    await dragArm(parked, landed);
+    expect(playback.moves, [true]);
+    await dragArm(landed, parked);
+    expect(playback.moves, [true, false]);
+    await tester.drag(find.text('LISTEN 2'), const Offset(-120, 0));
+    await tester.pumpAndSettle();
+    expect(find.byType(Search), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

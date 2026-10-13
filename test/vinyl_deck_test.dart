@@ -152,6 +152,74 @@ void main() {
   });
 
   testWidgets(
+      'slow tonearm drags own the pointer before page navigation and scrolling',
+      (tester) async {
+    final scroll = ScrollController();
+    addTearDown(scroll.dispose);
+    var pageSwipes = 0;
+    final moves = <bool>[];
+    final seeks = <Duration>[];
+    final skips = <int>[];
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: Center(
+                child: SizedBox(
+      width: 360,
+      height: 470,
+      child: GestureDetector(
+        onHorizontalDragUpdate: (_) => pageSwipes++,
+        child: SingleChildScrollView(
+            controller: scroll,
+            child: Column(children: [
+              VinylDeck(
+                playing: false,
+                position: const Duration(seconds: 45),
+                duration: const Duration(minutes: 3),
+                cover: const ColoredBox(color: vinylGold),
+                onArmChanged: (value) async => moves.add(value),
+                onSeek: (value) async => seeks.add(value),
+                onSkip: (value) async => skips.add(value),
+              ),
+              const SizedBox(height: 700),
+            ])),
+      ),
+    )))));
+    await tester.pumpAndSettle();
+    final rect = tester.getRect(find.byType(VinylDeck));
+    final geometry = VinylDeckGeometry(rect.size);
+    final start = rect.topLeft + geometry.parkedTip;
+    for (final destination in [
+      start + const Offset(-110, 0),
+      rect.topLeft + geometry.tip(1, .25),
+    ]) {
+      final drag = await tester.startGesture(start);
+      for (var index = 1; index <= 20; index++) {
+        await drag.moveTo(Offset.lerp(start, destination, index / 20)!);
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await drag.up();
+      await tester.pumpAndSettle();
+      expect(pageSwipes, 0,
+          reason: 'A slow arm drag must never become page navigation');
+      expect(scroll.offset, 0,
+          reason: 'Dragging the needle must not scroll the page');
+    }
+    expect(moves, [true]);
+    expect(seeks, isEmpty);
+    expect(skips, isEmpty);
+    // Other parts of the player retain normal navigation and vertical scrolling.
+    await tester.dragFrom(
+        rect.topLeft + const Offset(3, 100), const Offset(90, 0));
+    await tester.pumpAndSettle();
+    expect(pageSwipes, greaterThan(0));
+    await tester.dragFrom(
+        rect.topLeft + const Offset(3, 100), const Offset(0, -90));
+    await tester.pumpAndSettle();
+    expect(scroll.offset, greaterThan(0));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
       'tonearm only commits at a landing zone and cancellation restores it',
       (tester) async {
     final moves = <bool>[];
@@ -573,7 +641,7 @@ void main() {
     expect(seeks.single, greaterThan(const Duration(seconds: 45)));
     final viewport = tester.getRect(find.byType(SingleChildScrollView));
     await tester.dragFrom(
-        viewport.bottomCenter - const Offset(0, 20), const Offset(0, -80));
+        viewport.bottomLeft + const Offset(3, -20), const Offset(0, -80));
     await tester.pumpAndSettle();
     expect(scroll.offset, greaterThan(0));
     expect(tester.takeException(), isNull);

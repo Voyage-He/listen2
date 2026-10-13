@@ -133,6 +133,9 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
   double? _armDrag;
   bool _armHeld = false;
   bool? _armSnap;
+  int? _armPointer;
+  Offset? _armPressOrigin;
+  bool _armMoved = false;
   final _skipThresholdDirections = <int>{};
 
   Offset get _labelMovement =>
@@ -147,11 +150,54 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
   bool _canSkip(int direction) =>
       direction < 0 ? widget.canSkipPrevious : widget.canSkipNext;
 
-  void _releaseArm() => setState(() {
-        _armHeld = false;
-        _armDrag = null;
-        _armSnap = null;
-      });
+  void _clearArm() {
+    _armHeld = false;
+    _armDrag = null;
+    _armSnap = null;
+    _armPointer = null;
+    _armPressOrigin = null;
+    _armMoved = false;
+  }
+
+  void _releaseArm() => setState(_clearArm);
+
+  void _startArm(PointerDownEvent event, double lowered) {
+    if (!_available || _armPointer != null) return;
+    setState(() {
+      _armPointer = event.pointer;
+      _armPressOrigin = event.localPosition;
+      _armMoved = false;
+      _armHeld = true;
+      _armDrag = lowered;
+      _armSnap = null;
+    });
+  }
+
+  void _moveArm(
+      PointerMoveEvent event, VinylDeckGeometry geometry, double progress) {
+    if (event.pointer != _armPointer || !_available) return;
+    final distance = (event.localPosition - _armPressOrigin!).distance;
+    if (distance >
+        computeHitSlop(event.kind, MediaQuery.gestureSettingsOf(context))) {
+      _armMoved = true;
+    }
+    if (_armMoved) _dragArm(event.localPosition, geometry, progress);
+  }
+
+  void _endArm(PointerUpEvent event) {
+    if (event.pointer != _armPointer) return;
+    final moved = _armMoved;
+    final lowered = _armSnap;
+    _releaseArm();
+    if (!_available) return;
+    if (!moved) {
+      HapticFeedback.lightImpact();
+      widget.onArmChanged(!widget.playing);
+    } else if (lowered != null && lowered != widget.playing) {
+      HapticFeedback.lightImpact();
+      widget.onArmChanged(lowered);
+    }
+  }
 
   void _dragArm(Offset position, VinylDeckGeometry geometry, double progress) {
     final lowered = geometry.loweredAt(position, progress);
@@ -175,11 +221,7 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
   @override
   void didUpdateWidget(VinylDeck oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!_available) {
-      _armHeld = false;
-      _armDrag = null;
-      _armSnap = null;
-    }
+    if (!_available) _clearArm();
     if (!widget.busy &&
         (oldWidget.busy || widget.position != oldWidget.position)) {
       _pendingSeek = null;
@@ -543,69 +585,40 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                                             ? () => widget
                                                 .onArmChanged(!widget.playing)
                                             : null,
-                                        child: Listener(
-                                            // An accepted pan reports pointer cancellation as
-                                            // an end too. Clear the landing target first.
-                                            onPointerCancel: (_) =>
-                                                _releaseArm(),
-                                            child: GestureDetector(
-                                              key: const ValueKey('tonearm'),
-                                              dragStartBehavior:
-                                                  DragStartBehavior.down,
-                                              onPanDown: _available
-                                                  ? (_) => setState(
-                                                      () => _armHeld = true)
-                                                  : null,
-                                              onTapUp: (_) => _releaseArm(),
-                                              onTapCancel: () {
-                                                if (_armDrag == null) {
-                                                  _releaseArm();
-                                                }
-                                              },
-                                              onTap: _available
-                                                  ? () {
-                                                      HapticFeedback
-                                                          .lightImpact();
-                                                      widget.onArmChanged(
-                                                          !widget.playing);
-                                                    }
-                                                  : null,
-                                              onPanStart: _available
-                                                  ? (_) => setState(() {
-                                                        _armHeld = true;
-                                                        _armDrag =
-                                                            widget.playing
-                                                                ? 1
-                                                                : 0;
-                                                        _armSnap = null;
-                                                      })
-                                                  : null,
-                                              onPanUpdate: _available
-                                                  ? (details) => _dragArm(
-                                                      details.localPosition,
-                                                      geometry,
-                                                      progress)
-                                                  : null,
-                                              onPanEnd: _available
-                                                  ? (_) {
-                                                      final lowered = _armSnap;
-                                                      _releaseArm();
-                                                      if (lowered != null &&
-                                                          lowered !=
-                                                              widget.playing) {
-                                                        HapticFeedback
-                                                            .lightImpact();
-                                                        widget.onArmChanged(
-                                                            lowered);
-                                                      }
-                                                    }
-                                                  : null,
-                                              onPanCancel: _releaseArm,
-                                              child: CustomPaint(
-                                                  painter: _TonearmPainter(
-                                                      value, progress,
-                                                      lifted: _armHeld)),
-                                            ))),
+                                        child: RawGestureDetector(
+                                          key: const ValueKey('tonearm'),
+                                          // Reserve the pointer on down, before the page's
+                                          // horizontal/vertical recognizers reach their slop.
+                                          // Defer to the painter so blank deck areas stay free.
+                                          behavior:
+                                              HitTestBehavior.deferToChild,
+                                          gestures: {
+                                            EagerGestureRecognizer:
+                                                GestureRecognizerFactoryWithHandlers<
+                                                        EagerGestureRecognizer>(
+                                                    EagerGestureRecognizer.new,
+                                                    (_) {}),
+                                          },
+                                          child: Listener(
+                                            behavior:
+                                                HitTestBehavior.deferToChild,
+                                            onPointerDown: (event) =>
+                                                _startArm(event, value),
+                                            onPointerMove: (event) => _moveArm(
+                                                event, geometry, progress),
+                                            onPointerUp: _endArm,
+                                            onPointerCancel: (event) {
+                                              if (event.pointer ==
+                                                  _armPointer) {
+                                                _releaseArm();
+                                              }
+                                            },
+                                            child: CustomPaint(
+                                                painter: _TonearmPainter(
+                                                    value, progress,
+                                                    lifted: _armHeld)),
+                                          ),
+                                        )),
                                     if (_target != null ||
                                         (widget.enabled &&
                                             widget.duration > Duration.zero))
@@ -1275,13 +1288,19 @@ class _TonearmPainter extends CustomPainter {
   bool? hitTest(Offset position) {
     if (_size == null) return false;
     final pivot = _armPivot(_size!);
-    final tip = _armTip(_size!, lowered, progress);
-    final vector = tip - pivot;
-    final projection = ((position - pivot).dx * vector.dx +
-            (position - pivot).dy * vector.dy) /
-        vector.distanceSquared;
-    return (position - (pivot + vector * projection.clamp(0.0, 1.0))).distance <
-        24;
+    final tip = _armTip(_size!, lowered, progress) + Offset(0, lifted ? -5 : 0);
+    final elbow = _armElbow(_size!, tip);
+    double distanceToSegment(Offset start, Offset end) {
+      final vector = end - start;
+      final projection = ((position - start).dx * vector.dx +
+              (position - start).dy * vector.dy) /
+          vector.distanceSquared;
+      return (position - (start + vector * projection.clamp(0.0, 1.0)))
+          .distance;
+    }
+
+    return distanceToSegment(pivot, elbow) < 24 ||
+        distanceToSegment(elbow, tip) < 24;
   }
 
   @override

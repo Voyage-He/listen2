@@ -14,6 +14,7 @@ import 'package:listen2/src/widget/input/input.dart';
 import 'package:listen2/src/widget/popup.dart';
 import 'package:listen2/src/widget/bilibili_logo.dart';
 import 'package:listen2/src/widget/playlist_picker.dart';
+import 'package:listen2/src/widget/unlink_bilibili_playlist.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'playlist.g.dart';
@@ -90,6 +91,7 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
   final _addPlaylistPopupKey = GlobalKey<PopupState>();
   final _searchController = TextEditingController();
   String _query = '';
+  bool _unlinking = false;
   String get playlistName => widget.playlistName;
   bool get returnToPlayerOnPlay => widget.returnToPlayerOnPlay;
 
@@ -182,11 +184,35 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
               const Icon(Icons.library_music_rounded,
                   color: AppStyle.accent, size: 18),
             const SizedBox(width: 8),
-            Text(
-                query.isEmpty
-                    ? '${ref.watch(playlistIdsNotifierProvider(playlistName)).length} 首歌曲'
-                    : '${tracks.valueOrNull?.length ?? 0} / ${ref.watch(playlistIdsNotifierProvider(playlistName)).length} 首歌曲',
-                style: Theme.of(context).textTheme.bodyMedium),
+            Expanded(
+                child: Text(
+                    query.isEmpty
+                        ? '${ref.watch(playlistIdsNotifierProvider(playlistName)).length} 首歌曲'
+                        : '${tracks.valueOrNull?.length ?? 0} / ${ref.watch(playlistIdsNotifierProvider(playlistName)).length} 首歌曲',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium)),
+            if (isRemote) ...[
+              TextButton.icon(
+                  onPressed: _unlinking
+                      ? null
+                      : () async {
+                          setState(() => _unlinking = true);
+                          try {
+                            final kept = await showUnlinkBilibiliPlaylist(
+                                context, ref, playlistName);
+                            if (kept == false &&
+                                context.mounted &&
+                                Navigator.of(context).canPop()) {
+                              Navigator.of(context).pop();
+                            }
+                          } finally {
+                            if (mounted) setState(() => _unlinking = false);
+                          }
+                        },
+                  icon: const Icon(Icons.link_off_rounded, size: 18),
+                  label: const Text('取消关联')),
+            ],
           ])),
       Padding(
         padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),

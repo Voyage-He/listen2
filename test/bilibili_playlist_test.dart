@@ -425,4 +425,49 @@ void main() {
     await container.read(playlistNamesProvider.notifier).add('常听');
     expect(container.read(bilibiliPlaylistsProvider), isEmpty);
   });
+
+  test(
+      'unlink preserves songs, metadata and names and allows local editing after restart',
+      () async {
+    final sources = container.read(bilibiliPlaylistsProvider.notifier);
+    await sources.add('常听', '12345');
+    client.error = StateError('offline');
+    await sources.remove('常听');
+    expect(container.read(bilibiliPlaylistsProvider), isEmpty);
+    expect(
+        await container.read(playlistNamesProvider.future), ['favorite', '常听']);
+    expect(
+        container.read(playlistIdsNotifierProvider('常听')), ['first', 'second']);
+    expect(Hive.box<Track>('tracks').get('first')!.title, 'Song first');
+    expect(client.requests, 1);
+    expect(account.writes, isEmpty);
+    container.dispose();
+    container = createContainer();
+    await container.read(hiveStorageProvider.future);
+    expect(container.read(bilibiliPlaylistsProvider), isEmpty);
+    await container
+        .read(playlistIdsNotifierProvider('常听').notifier)
+        .add('local-song');
+    expect(container.read(playlistIdsNotifierProvider('常听')),
+        ['first', 'second', 'local-song']);
+    expect(account.writes, isEmpty);
+  });
+
+  test('a late refresh cannot modify songs after the folder is unlinked',
+      () async {
+    final sources = container.read(bilibiliPlaylistsProvider.notifier);
+    await sources.add('常听', '12345');
+    final pending = Completer<List<BilibiliVideoModel>>();
+    client.pending = pending;
+    final refresh = sources.refresh('常听');
+    await Future<void>.delayed(Duration.zero);
+    await sources.remove('常听');
+    pending.complete([_video('late')]);
+    await refresh;
+    expect(container.read(bilibiliPlaylistsProvider), isEmpty);
+    expect(
+        container.read(playlistIdsNotifierProvider('常听')), ['first', 'second']);
+    expect(
+        await container.read(playlistNamesProvider.future), ['favorite', '常听']);
+  });
 }

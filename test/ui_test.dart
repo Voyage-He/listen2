@@ -106,6 +106,28 @@ class _CollectionSources extends _Sources {
   Map<String, String> build() => {'Bili 歌单': '12345'};
 }
 
+class _UnlinkSources extends _Sources {
+  @override
+  Map<String, String> build() => {'常听': '12345'};
+
+  @override
+  Future<void> remove(String name) async {
+    state = {...state}..remove(name);
+  }
+}
+
+class _UnlinkNames extends PlaylistNames {
+  @override
+  Future<List<String>> build() async => ['favorite', '常听'];
+
+  @override
+  Future<void> delete(String name) async {
+    await ref.read(bilibiliPlaylistsProvider.notifier).remove(name);
+    state =
+        AsyncData(state.requireValue.where((value) => value != name).toList());
+  }
+}
+
 class _MutableCollectionNames extends PlaylistNames {
   @override
   Future<List<String>> build() async => ['favorite', '日常'];
@@ -217,6 +239,77 @@ class _SearchQueue extends CurrentPlaylistNotifier {
 }
 
 void main() {
+  ProviderContainer unlinkContainer() => ProviderContainer(overrides: [
+        bilibiliPlaylistsProvider.overrideWith(_UnlinkSources.new),
+        playlistNamesProvider.overrideWith(_UnlinkNames.new),
+        playlistIdsNotifierProvider('常听').overrideWith(_PlaylistSearchIds.new),
+        playlistTracksProvider('常听').overrideWith((ref) async => [
+              Track('first', 'Song first', 'Artist', ''),
+              Track('second', 'Song second', 'Artist', ''),
+            ]),
+      ]);
+
+  testWidgets('unlink can be canceled or confirmed while keeping the playlist',
+      (tester) async {
+    final container = unlinkContainer();
+    addTearDown(container.dispose);
+    await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+            theme: AppStyle.theme,
+            home: const Scaffold(body: PlaylistPage(playlistName: '常听')))));
+    await tester.pumpAndSettle();
+    expect(find.byType(BilibiliLogo), findsOneWidget);
+    await tester.tap(find.text('取消关联'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('返回'));
+    await tester.pumpAndSettle();
+    expect(container.read(bilibiliPlaylistsProvider), {'常听': '12345'});
+    await tester.tap(find.text('取消关联'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<CheckboxListTile>(find.byType(CheckboxListTile)).value,
+        isTrue);
+    await tester.tap(find.widgetWithText(FilledButton, '取消关联'));
+    await tester.pumpAndSettle();
+    expect(container.read(bilibiliPlaylistsProvider), isEmpty);
+    expect(find.byType(BilibiliLogo), findsNothing);
+    expect(find.text('Song first'), findsOneWidget);
+    expect(
+        await container.read(playlistNamesProvider.future), ['favorite', '常听']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'unlink can remove the app playlist on a narrow screen with large text',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final container = unlinkContainer();
+    addTearDown(container.dispose);
+    await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+            theme: AppStyle.theme,
+            builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: const TextScaler.linear(1.6)),
+                child: child!),
+            home: const Scaffold(body: PlaylistPage(playlistName: '常听')))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('取消关联'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保留为本地歌单'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<CheckboxListTile>(find.byType(CheckboxListTile)).value,
+        isFalse);
+    await tester.tap(find.widgetWithText(FilledButton, '取消关联'));
+    await tester.pumpAndSettle();
+    expect(container.read(bilibiliPlaylistsProvider), isEmpty);
+    expect(await container.read(playlistNamesProvider.future), ['favorite']);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
       'playlist search filters locally and preserves the playback queue',
       (tester) async {

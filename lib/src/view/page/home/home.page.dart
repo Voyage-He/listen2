@@ -4,6 +4,7 @@ import 'package:listen2/src/provider/repo/playlist_names.dart';
 import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
 import 'package:listen2/src/provider/repo/bilibili_playlists.dart';
 import 'package:listen2/src/widget/bilibili_logo.dart';
+import 'package:listen2/src/widget/unlink_bilibili_playlist.dart';
 import 'package:listen2/src/view/page/option/option.page.dart';
 import 'package:listen2/src/widget/app_style.dart';
 import '../search/search.page.dart';
@@ -155,30 +156,40 @@ class PlaylistItem extends ConsumerWidget {
                           style: Theme.of(context).textTheme.bodyMedium),
                     ])),
                 if (!favorite)
-                  IconButton(
-                      tooltip: '删除歌单',
-                      icon: const Icon(Icons.delete_outline_rounded,
-                          color: AppStyle.muted, size: 22),
-                      onPressed: () async {
-                        final confirmed = await showDialog<bool>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                                    title: const Text('删除歌单？'),
-                                    content: Text('确定删除「$name」吗？'),
-                                    actions: [
-                                      TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(context, false),
-                                          child: const Text('取消')),
-                                      TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(context, true),
-                                          child: const Text('删除'))
-                                    ]));
-                        if (confirmed == true) {
-                          ref.read(playlistNamesProvider.notifier).delete(name);
-                        }
-                      }),
+                  if (remote)
+                    IconButton(
+                        tooltip: '取消 Bilibili 关联',
+                        icon: const Icon(Icons.link_off_rounded,
+                            color: AppStyle.muted, size: 22),
+                        onPressed: () =>
+                            showUnlinkBilibiliPlaylist(context, ref, name))
+                  else
+                    IconButton(
+                        tooltip: '删除歌单',
+                        icon: const Icon(Icons.delete_outline_rounded,
+                            color: AppStyle.muted, size: 22),
+                        onPressed: () async {
+                          final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                      title: const Text('删除歌单？'),
+                                      content: Text('确定删除「$name」吗？'),
+                                      actions: [
+                                        TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(context, false),
+                                            child: const Text('取消')),
+                                        TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(context, true),
+                                            child: const Text('删除'))
+                                      ]));
+                          if (confirmed == true) {
+                            ref
+                                .read(playlistNamesProvider.notifier)
+                                .delete(name);
+                          }
+                        }),
                 const Icon(Icons.chevron_right_rounded, color: AppStyle.muted),
               ])),
         ));

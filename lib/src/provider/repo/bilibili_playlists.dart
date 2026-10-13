@@ -138,6 +138,7 @@ class BilibiliPlaylists extends Notifier<Map<String, String>> {
     if (!state.containsKey(name)) return;
     final next = {...state}..remove(name);
     await ref.read(hiveStorageProvider).requireValue.value.put(_key, next);
+    _writeVersions[name] = (_writeVersions[name] ?? 0) + 1;
     state = next;
   }
 }

@@ -43,6 +43,21 @@ flutter devices
 flutter run -d <iPhone或模拟器ID>
 ```
 
+### 当前环境的模拟器渲染兼容处理
+
+2026-10-14 的多份模拟器崩溃报告显示：宿主 `SimMetalHost` 在 `MTLSimApplicationContext::newObjectCommand_DEPRECATED` / `newCommandQueueWithDescriptor` 中发生 `EXC_BAD_ACCESS`，随后 Runner 的 `io.flutter.1.raster` 线程因 Metal XPC 连接丢失而终止。另有后台切换时等待 GPU 锁的 watchdog 记录。当前日志定位到模拟器的原生渲染服务。
+
+在项目固定的 Flutter 3.24.1 下，使用专用脚本启动模拟器，以 Skia 软件渲染避开该服务：
+
+```sh
+# 只有一个已启动的 iOS 模拟器时自动选择
+bash scripts/run_ios_simulator.sh
+# 或指定模拟器 UDID
+bash scripts/run_ios_simulator.sh <模拟器UDID>
+```
+
+脚本同时传入 `--no-enable-impeller` 和 `--enable-software-rendering`，并校验目标为 iOS 模拟器。它不修改真机或 Release 的渲染配置。软件渲染的动画性能可能低于 GPU 渲染。上述参数属于启动参数，重新从桌面图标冷启动不会保留；在当前环境里重新运行时也应使用该脚本。单独禁用 Impeller 仍可能使用 Metal，不能完全绕开失效的宿主渲染服务。
+
 最低 iOS 版本为 **12.0**。工程启用了后台音频；播放器配置为音乐播放会话，并向锁屏 / 控制中心同步歌曲、时长、进度以及播放、暂停、停止、拖动进度操作。来电等中断会暂停播放；只有系统允许恢复的暂停中断结束后才自动恢复，耳机拔出会暂停。
 
 音频数据仍存储在应用沙盒内。iOS 播放前会将缓存的 AAC 数据写入临时 `.m4a` 文件，交给 AVPlayer 播放。备份通过系统“文件”选择器导入 / 导出，沿用 Android 的 `listen2.back` JSON 格式。网络 API 使用 HTTPS，不开放全局明文网络权限。

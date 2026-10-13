@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:listen2/src/provider/global/current_playlist.dart';
 import 'package:listen2/src/provider/global/player.dart';
+import 'package:listen2/src/provider/global/playback_settings.dart';
 import 'package:listen2/src/provider/global/storage.dart';
 import 'package:listen2/src/provider/repo/track.dart';
 
@@ -69,6 +70,51 @@ void main() {
     container.dispose();
     await Hive.close();
     await directory.delete(recursive: true);
+  });
+
+  for (final enabled in [null, true, false]) {
+    test('startup restores the saved queue with autoplay setting $enabled',
+        () async {
+      if (enabled != null) {
+        await container
+            .read(autoplayOnStartupProvider.notifier)
+            .setAutoplay(enabled);
+      }
+      playback.select(null, ap.PlayerState.stopped);
+      final queue = container.read(currentPlaylistNotifierProvider);
+      await container.pump();
+      expect(queue.index, 1);
+      expect(queue.playlist, ['first', 'middle', 'last']);
+      expect(playback.plays, [('middle', enabled ?? true)]);
+      expect(container.read(playerStateNotifierProvider).state,
+          enabled == false ? ap.PlayerState.paused : ap.PlayerState.playing);
+    });
+  }
+
+  test('startup preference does not interrupt playback or block manual play',
+      () async {
+    await container.read(autoplayOnStartupProvider.notifier).setAutoplay(false);
+    playback.select(null, ap.PlayerState.stopped);
+    final subscription =
+        container.listen(currentPlaylistNotifierProvider, (_, __) {});
+    addTearDown(subscription.close);
+    final queue = container.read(currentPlaylistNotifierProvider.notifier);
+    await container.pump();
+    final paused = container.read(playerStateNotifierProvider);
+    await container.read(autoplayOnStartupProvider.notifier).setAutoplay(true);
+    await container.pump();
+    expect(container.read(playerStateNotifierProvider), same(paused));
+    expect(playback.plays, [('middle', false)]);
+    await container.read(autoplayOnStartupProvider.notifier).setAutoplay(false);
+    await queue.play('middle', ['first', 'middle', 'last']);
+    await container.pump();
+    expect(playback.plays.last, ('middle', true));
+    playback.select('middle', ap.PlayerState.completed);
+    await container.pump();
+    await container.pump();
+    expect(playback.plays.last, ('last', true));
+    expect(container.read(playerStateNotifierProvider).state,
+        ap.PlayerState.playing);
   });
 
   test('next and previous use the active queue and persist the selected index',

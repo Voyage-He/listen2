@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:listen2/src/provider/global/player.dart';
+import 'package:listen2/src/provider/global/playback_settings.dart';
 import 'package:listen2/src/ref_extensions.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -59,7 +60,7 @@ class CurrentPlaylistNotifier extends _$CurrentPlaylistNotifier {
 
     if (initilized) return currentPlaylistState;
     initilized = true;
-    return load();
+    return load(autoplay: ref.read(autoplayOnStartupProvider));
     // TODO fix: this load() cause play call twice when play next automatically
   }
 
@@ -102,7 +103,7 @@ class CurrentPlaylistNotifier extends _$CurrentPlaylistNotifier {
     load();
   }
 
-  CurrentPlaylistState load() {
+  CurrentPlaylistState load({bool autoplay = true}) {
     final currentPlaylistState = ref.storage.custom["current_playlist_state"]!
         .get('default',
             defaultValue: const CurrentPlaylistState(index: 0, playlist: []));
@@ -115,7 +116,7 @@ class CurrentPlaylistNotifier extends _$CurrentPlaylistNotifier {
 
     ref
         .read(playerStateNotifierProvider.notifier)
-        .playTrackById(currentPlaylistState.currentTrackId);
+        .playTrackById(currentPlaylistState.currentTrackId, autoplay: autoplay);
     debugPrint('load call time');
     return currentPlaylistState;
   }

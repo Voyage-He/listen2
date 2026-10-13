@@ -27,6 +27,12 @@ import 'package:listen2/src/widget/bilibili_logo.dart';
 import 'package:listen2/main.dart' show ListenApp;
 import 'package:listen2/src/provider/global/main.dart';
 import 'package:listen2/src/provider/global/background_settings.dart';
+import 'package:listen2/src/provider/global/playback_settings.dart';
+
+class _PlaybackSettings extends PlaybackSettingsNotifier {
+  @override
+  bool build() => true;
+}
 
 class _BackgroundSettings extends BackgroundSettingsNotifier {
   int saves = 0;
@@ -379,6 +385,7 @@ void main() {
     final settings = _BackgroundSettings();
     final container = ProviderContainer(overrides: [
       backgroundSettingsProvider.overrideWith(() => settings),
+      autoplayOnStartupProvider.overrideWith(_PlaybackSettings.new),
       globalReadyProvider.overrideWith((ref) async {}),
       player.playerStateNotifierProvider.overrideWith(_SingleTrackPlayer.new),
       playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
@@ -393,6 +400,7 @@ void main() {
     await tester.pumpAndSettle();
     final blur = find.byKey(const ValueKey('background-blur-slider'));
     final gradient = find.byKey(const ValueKey('background-gradient-slider'));
+    await tester.ensureVisible(blur);
     await tester.drag(blur, const Offset(180, 0));
     await tester.pumpAndSettle();
     final saved = container.read(backgroundSettingsProvider);
@@ -433,6 +441,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(ProviderScope(overrides: [
       backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+      autoplayOnStartupProvider.overrideWith(_PlaybackSettings.new),
       globalReadyProvider.overrideWith((ref) async {}),
       player.playerStateNotifierProvider.overrideWith(_SingleTrackPlayer.new),
       playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
@@ -999,6 +1008,7 @@ void main() {
       (tester) async {
     await tester.pumpWidget(ProviderScope(overrides: [
       backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+      autoplayOnStartupProvider.overrideWith(_PlaybackSettings.new),
       globalReadyProvider.overrideWith((ref) async {}),
       bilibiliPlaylistsProvider.overrideWith(_Sources.new),
       player.playerStateNotifierProvider.overrideWith(_Player.new),

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/playlist_backup.dart';
 import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
 import 'package:listen2/src/provider/global/background_settings.dart';
+import 'package:listen2/src/provider/global/playback_settings.dart';
 import 'package:listen2/src/widget/player_background.dart';
 import 'package:listen2/src/view/page/option/bilibili_account.page.dart';
 
@@ -21,6 +22,23 @@ class _OptionState extends ConsumerState<Option> {
   bool _busy = false;
   String? _message;
   String? _backgroundError;
+  bool _savingPlayback = false;
+  String? _playbackError;
+
+  Future<void> _setAutoplay(bool enabled) async {
+    if (_savingPlayback) return;
+    setState(() {
+      _savingPlayback = true;
+      _playbackError = null;
+    });
+    try {
+      await ref.read(autoplayOnStartupProvider.notifier).setAutoplay(enabled);
+    } catch (_) {
+      if (mounted) setState(() => _playbackError = '播放设置保存失败，请重试');
+    } finally {
+      if (mounted) setState(() => _savingPlayback = false);
+    }
+  }
 
   Future<void> _saveBackground() async {
     try {
@@ -80,6 +98,7 @@ class _OptionState extends ConsumerState<Option> {
   @override
   Widget build(BuildContext context) {
     final background = ref.watch(backgroundSettingsProvider);
+    final autoplay = ref.watch(autoplayOnStartupProvider);
     return PageSurface(
         child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -95,6 +114,29 @@ class _OptionState extends ConsumerState<Option> {
                   '扫码登录，访问私密收藏夹并管理收藏',
                   () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => const BilibiliAccountPage()))),
+              const SizedBox(height: 28),
+              Text('播放', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 16),
+              Material(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  child: SwitchListTile(
+                      key: const ValueKey('autoplay-on-startup-switch'),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18)),
+                      title: const Text('打开应用时自动播放',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: const Text('下次打开应用时生效，关闭后恢复歌曲但保持暂停'),
+                      value: autoplay,
+                      onChanged: _savingPlayback ? null : _setAutoplay)),
+              if (_playbackError != null)
+                Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(_playbackError!,
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.error))),
               const SizedBox(height: 28),
               Text('背景外观', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),

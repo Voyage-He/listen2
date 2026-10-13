@@ -516,7 +516,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(TextFormField), findsOneWidget);
     await tester.enterText(find.byType(TextFormField), '新歌单');
-    await tester.tap(find.text('添加'));
+    await tester.tap(find.text('创建本地歌单'));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);
     expect(find.text('收藏到歌单'), findsOneWidget);
@@ -786,16 +786,21 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('添加歌单'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('添加'));
+    await tester.tap(find.text('创建本地歌单'));
     await tester.pumpAndSettle();
     expect(find.text('请输入有效的收藏夹 ID'), findsNothing);
     expect(find.text('请输入歌单名称'), findsOneWidget);
     expect(sources.attempts, isEmpty);
 
+    await tester.tap(find.text('平台导入'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('导入收藏夹'));
+    await tester.pumpAndSettle();
+    expect(find.text('请输入收藏夹链接或 ID'), findsOneWidget);
     await tester.enterText(find.byType(TextFormField).at(0), '12345');
     await tester.enterText(find.byType(TextFormField).at(1), '收藏音乐');
     sources.pending = Completer<void>();
-    await tester.tap(find.text('添加'));
+    await tester.tap(find.text('导入收藏夹'));
     await tester.pump();
     expect(sources.attempts, [
       ['收藏音乐', '12345']
@@ -807,7 +812,7 @@ void main() {
         isNull);
     sources.pending!.completeError(StateError('offline'));
     await tester.pumpAndSettle();
-    expect(find.text('添加失败，请检查收藏夹 ID、公开权限或网络后重试'), findsOneWidget);
+    expect(find.text('导入失败，请检查收藏夹链接、访问权限或网络后重试'), findsOneWidget);
     expect(
         tester
             .widget<TextFormField>(find.byType(TextFormField).at(0))
@@ -816,7 +821,7 @@ void main() {
         '12345');
 
     sources.pending = null;
-    await tester.tap(find.text('添加'));
+    await tester.tap(find.text('导入收藏夹'));
     await tester.pumpAndSettle();
     expect(find.text('收藏音乐'), findsOneWidget);
     expect(find.text('歌单还是空的'), findsOneWidget);
@@ -824,8 +829,8 @@ void main() {
     expect(find.byTooltip('添加歌单'), findsOneWidget);
     await tester.tap(find.byTooltip('添加歌单'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField).at(1), '空白歌单');
-    await tester.tap(find.text('添加'));
+    await tester.enterText(find.byType(TextFormField), '空白歌单');
+    await tester.tap(find.text('创建本地歌单'));
     await tester.pumpAndSettle();
     expect(sources.attempts.last, ['空白歌单', '']);
     expect(find.text('空白歌单'), findsOneWidget);

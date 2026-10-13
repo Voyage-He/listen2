@@ -9,8 +9,10 @@ import 'package:music_api/music_api.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class BilibiliAccountPage extends ConsumerStatefulWidget {
-  const BilibiliAccountPage({super.key, this.trackId});
+  const BilibiliAccountPage(
+      {super.key, this.trackId, this.returnImportedPlaylist = false});
   final String? trackId;
+  final bool returnImportedPlaylist;
   @override
   ConsumerState<BilibiliAccountPage> createState() =>
       _BilibiliAccountPageState();
@@ -225,7 +227,12 @@ class _BilibiliAccountPageState extends ConsumerState<BilibiliAccountPage>
       await ref
           .read(bilibiliPlaylistsProvider.notifier)
           .add(result.$1, '${folder.id}');
-      if (mounted) setState(() => _message = '已导入歌单「${result.$1}」');
+      if (!mounted) return;
+      if (widget.returnImportedPlaylist) {
+        Navigator.pop(context, result.$1);
+      } else {
+        setState(() => _message = '已导入歌单「${result.$1}」');
+      }
     } catch (error) {
       _handleError(error);
     } finally {

@@ -6,6 +6,21 @@ import 'package:listen2/src/provider/repo/playlist_names.dart';
 import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
 import 'package:listen2/src/provider/repo/track.dart';
 
+String parseBilibiliFavoriteId(String input) {
+  input = input.trim();
+  final validId = RegExp(r'^[1-9][0-9]*$');
+  if (validId.hasMatch(input)) return input;
+  final uri = Uri.tryParse(input);
+  if (uri != null &&
+      (uri.scheme == 'https' || uri.scheme == 'http') &&
+      (uri.host == 'bilibili.com' || uri.host.endsWith('.bilibili.com'))) {
+    final id = uri.queryParameters['fid'] ??
+        RegExp(r'(?:^|/)ml([1-9][0-9]*)(?:/|$)').firstMatch(uri.path)?.group(1);
+    if (id != null && validId.hasMatch(id)) return id;
+  }
+  throw const FormatException('请输入有效的 Bilibili 收藏夹链接或数字 ID');
+}
+
 final bilibiliPlaylistsProvider =
     NotifierProvider<BilibiliPlaylists, Map<String, String>>(
         BilibiliPlaylists.new);
@@ -48,9 +63,7 @@ class BilibiliPlaylists extends Notifier<Map<String, String>> {
     name = name.trim();
     mediaId = mediaId.trim();
     if (name.isEmpty) throw const FormatException('请输入歌单名称');
-    if (mediaId.isNotEmpty && !RegExp(r'^[1-9][0-9]*$').hasMatch(mediaId)) {
-      throw const FormatException('请输入有效的收藏夹数字 ID');
-    }
+    if (mediaId.isNotEmpty) mediaId = parseBilibiliFavoriteId(mediaId);
     final names = await ref.read(playlistNamesProvider.future);
     if (names.contains(name) || name == 'favorite' || name == '我喜欢的') {
       throw const FormatException('歌单名称已存在，请使用其他名称');

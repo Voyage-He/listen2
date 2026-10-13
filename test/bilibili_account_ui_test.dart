@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:listen2/src/provider/repo/bilibili_account.dart';
+import 'package:listen2/src/provider/repo/bilibili_playlists.dart';
+import 'package:listen2/src/widget/add_bilibili_playlist.dart';
 import 'package:listen2/src/view/page/option/bilibili_account.page.dart';
 import 'package:listen2/src/widget/app_style.dart';
 import 'package:music_api/music_api.dart';
@@ -14,6 +16,15 @@ class _Store implements BilibiliSessionStore {
   Future<void> write(String _) async {}
   @override
   Future<void> delete() async {}
+}
+
+class _ImportSources extends BilibiliPlaylists {
+  final calls = <List<String>>[];
+  @override
+  Map<String, String> build() => {};
+  @override
+  Future<void> add(String name, String mediaId) async =>
+      calls.add([name, mediaId]);
 }
 
 class _AccountClient extends BilibiliAccountClient {
@@ -102,6 +113,46 @@ Future<void> _pump(WidgetTester tester, _AccountClient client,
 }
 
 void main() {
+  testWidgets(
+      'account import returns the new playlist through the creation dialog',
+      (tester) async {
+    final client = _AccountClient(loggedIn: true);
+    final sources = _ImportSources();
+    String? selected;
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          bilibiliAccountClientProvider.overrideWithValue(client),
+          bilibiliPlaylistsProvider.overrideWith(() => sources),
+        ],
+        child: MaterialApp(
+            theme: AppStyle.theme,
+            home: Scaffold(
+                body: Builder(
+                    builder: (context) => TextButton(
+                          onPressed: () async =>
+                              selected = await showAddBilibiliPlaylist(context),
+                          child: const Text('打开新增歌单'),
+                        ))))));
+    await tester.tap(find.text('打开新增歌单'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('平台导入'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('从我的收藏夹选择'));
+    await tester.tap(find.text('从我的收藏夹选择'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('常听'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('导入'));
+    await tester.pumpAndSettle();
+    expect(sources.calls, [
+      ['常听', '987123']
+    ]);
+    expect(selected, '常听');
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byType(BilibiliAccountPage), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
       'polling pauses in the background and QR expires after three minutes',
       (tester) async {

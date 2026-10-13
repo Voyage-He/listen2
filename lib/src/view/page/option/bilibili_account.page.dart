@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/repo/bilibili_account.dart';
 import 'package:listen2/src/provider/repo/bilibili_playlists.dart';
 import 'package:listen2/src/widget/app_style.dart';
+import 'package:listen2/src/widget/unlink_bilibili_playlist.dart';
 import 'package:music_api/music_api.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:listen2/src/widget/bilibili_logo.dart';
@@ -28,6 +29,7 @@ class _BilibiliAccountPageState extends ConsumerState<BilibiliAccountPage>
   List<BilibiliFavoriteFolder>? _folders;
   int? _avid;
   bool _busy = false;
+  bool _linking = false;
   bool _polling = false;
   bool _active = true;
   int _qrGeneration = 0;
@@ -214,7 +216,7 @@ class _BilibiliAccountPageState extends ConsumerState<BilibiliAccountPage>
     }
   }
 
-  Future<void> _import(BilibiliFavoriteFolder folder) async {
+  Future<void> _link(BilibiliFavoriteFolder folder) async {
     final result = await showDialog<(String, bool)>(
         context: context,
         builder: (_) => _FolderDialog(importTitle: folder.title));
@@ -232,13 +234,92 @@ class _BilibiliAccountPageState extends ConsumerState<BilibiliAccountPage>
       if (widget.returnImportedPlaylist) {
         Navigator.pop(context, result.$1);
       } else {
-        setState(() => _message = '已导入歌单「${result.$1}」');
+        setState(() => _message = '已关联歌单「${result.$1}」');
       }
     } catch (error) {
       _handleError(error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _manageLink(
+      BilibiliFavoriteFolder folder, List<String> names) async {
+    if (_busy || _linking) return;
+    setState(() {
+      _linking = true;
+      _message = null;
+      _error = null;
+    });
+    try {
+      if (names.isEmpty) {
+        await _link(folder);
+        return;
+      }
+      final name = names.length == 1
+          ? names.single
+          : await showDialog<String>(
+              context: context,
+              builder: (context) => SimpleDialog(
+                    title: const Text('选择要取消关联的歌单'),
+                    children: [
+                      for (final name in names)
+                        SimpleDialogOption(
+                            onPressed: () => Navigator.pop(context, name),
+                            child: Row(children: [
+                              const Icon(Icons.link_off_rounded),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text(name)),
+                            ])),
+                    ],
+                  ));
+      if (name != null && mounted) {
+        await showUnlinkBilibiliPlaylist(context, ref, name);
+      }
+    } finally {
+      if (mounted) setState(() => _linking = false);
+    }
+  }
+
+  Widget _folderTile(
+      BilibiliFavoriteFolder folder, Map<String, String> sources) {
+    final names = sources.entries
+        .where((entry) => entry.value == '${folder.id}')
+        .map((entry) => entry.key)
+        .toList();
+    final linked = names.isNotEmpty;
+    final disabled = _busy || _linking;
+    final linkTooltip = linked ? '取消关联：${names.join('、')}' : '关联到应用歌单';
+    return Card(
+      child: ListTile(
+        enabled: !disabled,
+        leading: const BilibiliLogo(),
+        title: Text(folder.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+        subtitle: Text(
+            '${folder.count} 个视频 · ${folder.isPrivate ? '私密' : '公开'}${widget.trackId != null && folder.containsVideo ? ' · 已收藏' : ''}'),
+        trailing: widget.trackId == null
+            ? linked
+                ? IconButton.filledTonal(
+                    tooltip: linkTooltip,
+                    onPressed:
+                        disabled ? null : () => _manageLink(folder, names),
+                    icon: const Icon(Icons.link_off_rounded))
+                : IconButton.outlined(
+                    tooltip: linkTooltip,
+                    onPressed:
+                        disabled ? null : () => _manageLink(folder, names),
+                    icon: const Icon(Icons.link_rounded))
+            : IconButton(
+                tooltip: folder.containsVideo ? '取消收藏' : '收藏到此收藏夹',
+                onPressed: disabled ? null : () => _toggle(folder),
+                icon: Icon(folder.containsVideo
+                    ? Icons.check_circle_rounded
+                    : Icons.add_circle_outline_rounded)),
+        onTap: () => widget.trackId == null
+            ? _manageLink(folder, names)
+            : _toggle(folder),
+      ),
+    );
   }
 
   Future<void> _logout() async {
@@ -271,6 +352,10 @@ class _BilibiliAccountPageState extends ConsumerState<BilibiliAccountPage>
     });
     final account = ref.watch(bilibiliAccountProvider);
     final user = account.valueOrNull;
+    final sources = user == null
+        ? <String, String>{}
+        : ref.watch(bilibiliPlaylistsProvider);
+    final disabled = _busy || _linking;
     return PageSurface(
         child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -323,46 +408,33 @@ class _BilibiliAccountPageState extends ConsumerState<BilibiliAccountPage>
                   style: const TextStyle(color: AppStyle.muted)),
               const SizedBox(height: 12),
               Wrap(spacing: 8, children: [
-                OutlinedButton.icon(
-                    onPressed: _busy ? null : _loadFolders,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('刷新收藏夹')),
-                TextButton(
-                    onPressed: _busy ? null : _logout,
-                    child: const Text('退出登录')),
+                IconButton.outlined(
+                  tooltip: '刷新收藏夹',
+                  onPressed: disabled ? null : _loadFolders,
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+                IconButton.outlined(
+                    tooltip: '新建 Bilibili 收藏夹',
+                    onPressed: disabled ? null : _createFolder,
+                    icon: const Icon(Icons.create_new_folder_outlined)),
+                IconButton(
+                    tooltip: '退出登录',
+                    onPressed: disabled ? null : _logout,
+                    icon: const Icon(Icons.logout_rounded)),
               ]),
               const SizedBox(height: 16),
               Text(widget.trackId == null
-                  ? '选择收藏夹，导入为应用歌单。'
+                  ? '点击链条图标，关联或取消关联应用歌单。'
                   : '选择收藏夹，将这首歌收藏到 Bilibili 或取消收藏。'),
               const SizedBox(height: 12),
               if (_folders == null && !_busy)
-                TextButton(
-                    onPressed: _loadFolders, child: const Text('加载我的收藏夹')),
+                IconButton.outlined(
+                    tooltip: '加载我的收藏夹',
+                    onPressed: disabled ? null : _loadFolders,
+                    icon: const Icon(Icons.cloud_download_outlined)),
               if (_folders?.isEmpty == true) const Text('还没有收藏夹，可以先创建一个。'),
               for (final folder in _folders ?? <BilibiliFavoriteFolder>[])
-                Card(
-                  child: ListTile(
-                    enabled: !_busy,
-                    leading: const BilibiliLogo(),
-                    title: Text(folder.title),
-                    subtitle: Text(
-                        '${folder.count} 个视频 · ${folder.isPrivate ? '私密' : '公开'}${widget.trackId != null && folder.containsVideo ? ' · 已收藏' : ''}'),
-                    trailing: widget.trackId == null
-                        ? const Icon(Icons.download_rounded)
-                        : Icon(folder.containsVideo
-                            ? Icons.check_circle_rounded
-                            : Icons.add_circle_outline_rounded),
-                    onTap: () => widget.trackId == null
-                        ? _import(folder)
-                        : _toggle(folder),
-                  ),
-                ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                  onPressed: _busy ? null : _createFolder,
-                  icon: const Icon(Icons.create_new_folder_outlined),
-                  label: const Text('新建 Bilibili 收藏夹')),
+                _folderTile(folder, sources),
             ],
             if (_busy)
               const Padding(
@@ -404,7 +476,7 @@ class _FolderDialogState extends State<_FolderDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-        title: Text(widget.importTitle == null ? '新建 Bilibili 收藏夹' : '导入为歌单'),
+        title: Text(widget.importTitle == null ? '新建 Bilibili 收藏夹' : '关联为应用歌单'),
         content: SingleChildScrollView(
             child: Form(
                 key: _form,
@@ -433,7 +505,7 @@ class _FolderDialogState extends State<_FolderDialog> {
                   Navigator.pop(context, (_name.text.trim(), _private));
                 }
               },
-              child: Text(widget.importTitle == null ? '创建' : '导入')),
+              child: Text(widget.importTitle == null ? '创建' : '关联')),
         ],
       );
 }

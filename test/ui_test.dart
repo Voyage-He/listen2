@@ -260,12 +260,12 @@ void main() {
             home: const Scaffold(body: PlaylistPage(playlistName: '常听')))));
     await tester.pumpAndSettle();
     expect(find.byType(BilibiliLogo), findsOneWidget);
-    await tester.tap(find.text('取消关联'));
+    await tester.tap(find.byTooltip('取消 Bilibili 关联'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('返回'));
     await tester.pumpAndSettle();
     expect(container.read(bilibiliPlaylistsProvider), {'常听': '12345'});
-    await tester.tap(find.text('取消关联'));
+    await tester.tap(find.byTooltip('取消 Bilibili 关联'));
     await tester.pumpAndSettle();
     expect(tester.widget<CheckboxListTile>(find.byType(CheckboxListTile)).value,
         isTrue);
@@ -297,7 +297,7 @@ void main() {
                 child: child!),
             home: const Scaffold(body: PlaylistPage(playlistName: '常听')))));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('取消关联'));
+    await tester.tap(find.byTooltip('取消 Bilibili 关联'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('保留为本地歌单'));
     await tester.pumpAndSettle();

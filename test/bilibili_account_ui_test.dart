@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:listen2/src/provider/repo/bilibili_account.dart';
 import 'package:listen2/src/provider/repo/bilibili_playlists.dart';
+import 'package:listen2/src/provider/repo/playlist_names.dart';
 import 'package:listen2/src/widget/add_bilibili_playlist.dart';
 import 'package:listen2/src/view/page/option/bilibili_account.page.dart';
 import 'package:listen2/src/widget/app_style.dart';
@@ -19,12 +20,43 @@ class _Store implements BilibiliSessionStore {
 }
 
 class _ImportSources extends BilibiliPlaylists {
+  _ImportSources([this.initial = const {}]);
+  final Map<String, String> initial;
   final calls = <List<String>>[];
+  final removals = <String>[];
   @override
-  Map<String, String> build() => {};
+  Map<String, String> build() => initial;
   @override
-  Future<void> add(String name, String mediaId) async =>
-      calls.add([name, mediaId]);
+  Future<void> add(String name, String mediaId) async {
+    calls.add([name, mediaId]);
+    state = {...state, name: mediaId};
+    await ref.read(playlistNamesProvider.notifier).add(name);
+  }
+
+  @override
+  Future<void> remove(String name) async {
+    removals.add(name);
+    state = {...state}..remove(name);
+  }
+}
+
+class _Names extends PlaylistNames {
+  _Names([this.initial = const ['favorite']]);
+  final List<String> initial;
+  @override
+  Future<List<String>> build() async => initial;
+
+  @override
+  Future<void> add(String name) async {
+    state = AsyncData([...await future, name]);
+  }
+
+  @override
+  Future<void> delete(String name) async {
+    final names = await future;
+    await ref.read(bilibiliPlaylistsProvider.notifier).remove(name);
+    state = AsyncData(names.where((value) => value != name).toList());
+  }
 }
 
 class _AccountClient extends BilibiliAccountClient {
@@ -93,13 +125,18 @@ class _AccountClient extends BilibiliAccountClient {
 }
 
 Future<void> _pump(WidgetTester tester, _AccountClient client,
-    {String? trackId, double textScale = 1}) async {
+    {String? trackId, double textScale = 1, _ImportSources? sources}) async {
   tester.view.physicalSize = const Size(320, 640);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(ProviderScope(
-    overrides: [bilibiliAccountClientProvider.overrideWithValue(client)],
+    overrides: [
+      bilibiliAccountClientProvider.overrideWithValue(client),
+      bilibiliPlaylistsProvider.overrideWith(() => sources ?? _ImportSources()),
+      playlistNamesProvider
+          .overrideWith(() => _Names(['favorite', ...?sources?.initial.keys])),
+    ],
     child: MaterialApp(
       theme: AppStyle.theme,
       builder: (context, child) => MediaQuery(
@@ -123,6 +160,7 @@ void main() {
         overrides: [
           bilibiliAccountClientProvider.overrideWithValue(client),
           bilibiliPlaylistsProvider.overrideWith(() => sources),
+          playlistNamesProvider.overrideWith(_Names.new),
         ],
         child: MaterialApp(
             theme: AppStyle.theme,
@@ -142,7 +180,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('常听'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('导入'));
+    await tester.tap(find.text('关联'));
     await tester.pumpAndSettle();
     expect(sources.calls, [
       ['常听', '987123']
@@ -150,6 +188,71 @@ void main() {
     expect(selected, '常听');
     expect(find.byType(AlertDialog), findsNothing);
     expect(find.byType(BilibiliAccountPage), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('settings link icons update and unlink can preserve the playlist',
+      (tester) async {
+    final client = _AccountClient(loggedIn: true);
+    final sources = _ImportSources();
+    await _pump(tester, client, sources: sources, textScale: 1.6);
+    expect(find.byTooltip('关联到应用歌单'), findsOneWidget);
+    expect(find.byIcon(Icons.link_rounded), findsOneWidget);
+    await tester.tap(find.byTooltip('关联到应用歌单'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), '本地常听');
+    await tester.tap(find.widgetWithText(FilledButton, '关联'));
+    await tester.pumpAndSettle();
+    expect(sources.calls, [
+      ['本地常听', '987123']
+    ]);
+    expect(find.byTooltip('取消关联：本地常听'), findsOneWidget);
+    expect(find.byIcon(Icons.link_off_rounded), findsOneWidget);
+    await tester.tap(find.byTooltip('取消关联：本地常听'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('返回'));
+    await tester.pumpAndSettle();
+    expect(sources.removals, isEmpty);
+    await tester.tap(find.byTooltip('取消关联：本地常听'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '取消关联'));
+    await tester.pumpAndSettle();
+    expect(sources.state, isEmpty);
+    final container = ProviderScope.containerOf(
+        tester.element(find.byType(BilibiliAccountPage)));
+    expect(await container.read(playlistNamesProvider.future),
+        ['favorite', '本地常听']);
+    expect(find.byTooltip('关联到应用歌单'), findsOneWidget);
+    expect(client.writes, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'unlink identifies aliases by folder ID and removes only selection',
+      (tester) async {
+    final client = _AccountClient(loggedIn: true);
+    final sources = _ImportSources({
+      '通勤': '987123',
+      '周末': '987123',
+      '其他': '222',
+    });
+    await _pump(tester, client, sources: sources);
+    await tester.tap(find.byTooltip('取消关联：通勤、周末'));
+    await tester.pumpAndSettle();
+    expect(find.text('选择要取消关联的歌单'), findsOneWidget);
+    await tester.tap(find.text('周末'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保留为本地歌单'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '取消关联'));
+    await tester.pumpAndSettle();
+    expect(sources.state, {'通勤': '987123', '其他': '222'});
+    final container = ProviderScope.containerOf(
+        tester.element(find.byType(BilibiliAccountPage)));
+    expect(await container.read(playlistNamesProvider.future),
+        ['favorite', '通勤', '其他']);
+    expect(find.byTooltip('取消关联：通勤'), findsOneWidget);
+    expect(client.writes, 0);
     expect(tester.takeException(), isNull);
   });
 
@@ -227,8 +330,8 @@ void main() {
       (tester) async {
     final client = _AccountClient(loggedIn: true);
     await _pump(tester, client, textScale: 1.6);
-    await tester.ensureVisible(find.text('新建 Bilibili 收藏夹'));
-    await tester.tap(find.text('新建 Bilibili 收藏夹'));
+    await tester.ensureVisible(find.byTooltip('新建 Bilibili 收藏夹'));
+    await tester.tap(find.byTooltip('新建 Bilibili 收藏夹'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('创建'));
     await tester.pumpAndSettle();
@@ -259,7 +362,7 @@ void main() {
       (tester) async {
     final client = _AccountClient(loggedIn: true);
     await _pump(tester, client);
-    await tester.tap(find.text('退出登录'));
+    await tester.tap(find.byTooltip('退出登录'));
     await tester.pumpAndSettle();
     expect(find.text('获取登录二维码'), findsOneWidget);
     expect(find.text('常听'), findsNothing);

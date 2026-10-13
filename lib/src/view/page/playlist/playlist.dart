@@ -193,7 +193,8 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyMedium)),
             if (isRemote) ...[
-              TextButton.icon(
+              IconButton(
+                  tooltip: '取消 Bilibili 关联',
                   onPressed: _unlinking
                       ? null
                       : () async {
@@ -210,8 +211,7 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
                             if (mounted) setState(() => _unlinking = false);
                           }
                         },
-                  icon: const Icon(Icons.link_off_rounded, size: 18),
-                  label: const Text('取消关联')),
+                  icon: const Icon(Icons.link_off_rounded)),
             ],
           ])),
       Padding(

@@ -7,6 +7,7 @@ import 'package:listen2/src/provider/repo/bilibili_playlists.dart';
 import 'package:listen2/src/widget/app_style.dart';
 import 'package:music_api/music_api.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:listen2/src/widget/bilibili_logo.dart';
 
 class BilibiliAccountPage extends ConsumerStatefulWidget {
   const BilibiliAccountPage(
@@ -343,9 +344,7 @@ class _BilibiliAccountPageState extends ConsumerState<BilibiliAccountPage>
                 Card(
                   child: ListTile(
                     enabled: !_busy,
-                    leading: Icon(folder.isPrivate
-                        ? Icons.lock_outline_rounded
-                        : Icons.folder_outlined),
+                    leading: const BilibiliLogo(),
                     title: Text(folder.title),
                     subtitle: Text(
                         '${folder.count} 个视频 · ${folder.isPrivate ? '私密' : '公开'}${widget.trackId != null && folder.containsVideo ? ' · 已收藏' : ''}'),

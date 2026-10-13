@@ -12,6 +12,8 @@ import 'package:listen2/src/provider/repo/track.dart';
 import 'package:listen2/src/widget/button/button.dart';
 import 'package:listen2/src/widget/input/input.dart';
 import 'package:listen2/src/widget/popup.dart';
+import 'package:listen2/src/widget/bilibili_logo.dart';
+import 'package:listen2/src/widget/playlist_picker.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'playlist.g.dart';
@@ -174,8 +176,11 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
       Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
           child: Row(children: [
-            const Icon(Icons.library_music_rounded,
-                color: AppStyle.accent, size: 18),
+            if (isRemote)
+              const BilibiliLogo(size: 32)
+            else
+              const Icon(Icons.library_music_rounded,
+                  color: AppStyle.accent, size: 18),
             const SizedBox(width: 8),
             Text(
                 query.isEmpty
@@ -338,65 +343,8 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
       );
 
   Widget _playlistSettingPopup(WidgetRef ref, Track? track) {
-    final playlistNames = ref.watch(playlistNamesProvider);
-    final remoteNames = ref.watch(bilibiliPlaylistsProvider).keys;
-    final localNames = playlistNames.valueOrNull
-            ?.where((name) => !remoteNames.contains(name))
-            .toList() ??
-        <String>[];
-    // final playlistIds = ref.watch(playlistIdsProvider[playlistNames.valueOrNull![0]]);
     return Popup(
-      track == null
-          ? Container()
-          : Center(
-              child: Column(
-                children: [
-                  Button(
-                    onTap: () {
-                      _playlistSettingPopupKey.currentState!.toggle();
-                      ref
-                          .read(addPlaylistNameNotifierProvider.notifier)
-                          .update('');
-                      _addPlaylistPopupKey.currentState!.toggle();
-                    },
-                    child: const Text('新建歌单'),
-                  ),
-                  if (localNames.isNotEmpty)
-                    Expanded(
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: localNames.length,
-                        itemBuilder: (context, index) {
-                          final name = localNames[index];
-                          final isCollected = ref
-                              .watch(playlistIdsNotifierProvider(name))
-                              .contains(track.bvid);
-                          return Button(
-                            onTap: () {
-                              ref
-                                  .read(playlistIdsNotifierProvider(name)
-                                      .notifier)
-                                  .toggle(track.bvid);
-                            },
-                            color:
-                                isCollected ? AppStyle.muted : AppStyle.accent,
-                            child: Row(
-                              children: [
-                                Expanded(
-                                    child: Text(
-                                        name == 'favorite' ? '我喜欢的音乐' : name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis)),
-                                Icon(isCollected ? Icons.check : Icons.add),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                ],
-              ),
-            ),
+      track == null ? Container() : PlaylistPicker(trackId: track.bvid),
       key: _playlistSettingPopupKey,
     );
   }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/repo/playlist_names.dart';
 import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
+import 'package:listen2/src/provider/repo/bilibili_playlists.dart';
+import 'package:listen2/src/widget/bilibili_logo.dart';
 import 'package:listen2/src/view/page/option/option.page.dart';
 import 'package:listen2/src/widget/app_style.dart';
 import '../search/search.page.dart';
@@ -104,6 +106,7 @@ class PlaylistItem extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final favorite = name == 'favorite';
+    final remote = ref.watch(bilibiliPlaylistsProvider).containsKey(name);
     final count = ref.watch(playlistIdsNotifierProvider(name)).length;
     return Material(
         color: Colors.white,
@@ -118,18 +121,26 @@ class PlaylistItem extends ConsumerWidget {
                 SizedBox(
                     width: 62,
                     height: 62,
-                    child: VinylRecord(
-                        playing: false,
-                        cover: ColoredBox(
-                            color: favorite
-                                ? const Color(0xFFDBBE7E)
-                                : const Color(0xFFA6B196),
-                            child: Icon(
-                                favorite
-                                    ? Icons.favorite_rounded
-                                    : Icons.music_note_rounded,
-                                color: Colors.white,
-                                size: 14)))),
+                    child: remote
+                        ? Container(
+                            decoration: BoxDecoration(
+                                color: const Color(0xFFFCE5ED),
+                                borderRadius: BorderRadius.circular(18)),
+                            child: const Padding(
+                                padding: EdgeInsets.all(10),
+                                child: BilibiliLogo(size: 42)))
+                        : VinylRecord(
+                            playing: false,
+                            cover: ColoredBox(
+                                color: favorite
+                                    ? const Color(0xFFDBBE7E)
+                                    : const Color(0xFFA6B196),
+                                child: Icon(
+                                    favorite
+                                        ? Icons.favorite_rounded
+                                        : Icons.music_note_rounded,
+                                    color: Colors.white,
+                                    size: 14)))),
                 const SizedBox(width: 16),
                 Expanded(
                     child: Column(
@@ -140,7 +151,7 @@ class PlaylistItem extends ConsumerWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 6),
-                      Text('$count 首歌曲',
+                      Text('$count 首歌曲${remote ? ' · Bilibili 收藏夹' : ''}',
                           style: Theme.of(context).textTheme.bodyMedium),
                     ])),
                 if (!favorite)

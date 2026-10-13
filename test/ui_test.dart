@@ -23,6 +23,7 @@ import 'package:listen2/src/widget/progress_bar.dart';
 import 'package:listen2/src/widget/vinyl_deck.dart';
 import 'package:listen2/src/widget/player_tutorial.dart';
 import 'package:listen2/src/widget/playlist_picker.dart';
+import 'package:listen2/src/widget/bilibili_logo.dart';
 import 'package:listen2/main.dart' show ListenApp;
 import 'package:listen2/src/provider/global/main.dart';
 import 'package:listen2/src/provider/global/background_settings.dart';
@@ -398,7 +399,8 @@ void main() {
       expect(find.text('收藏到歌单'), findsOneWidget);
       expect(find.text('我喜欢的'), findsOneWidget);
       expect(find.text('日常'), findsOneWidget);
-      expect(find.text('Bili 歌单'), findsNothing);
+      expect(find.text('Bili 歌单'), findsOneWidget);
+      expect(find.byType(BilibiliLogo), findsNWidgets(2));
     }
 
     await openCollection();
@@ -464,6 +466,7 @@ void main() {
           bilibiliPlaylistsProvider.overrideWith(_CollectionSources.new),
           playlistIdsNotifierProvider('favorite').overrideWith(() => ids),
           playlistIdsNotifierProvider('日常').overrideWith(_Ids.new),
+          playlistIdsNotifierProvider('Bili 歌单').overrideWith(_Ids.new),
         ],
         child: MaterialApp(
             theme: AppStyle.theme,
@@ -549,6 +552,7 @@ void main() {
           bilibiliPlaylistsProvider.overrideWith(_CollectionSources.new),
           playlistIdsNotifierProvider('favorite').overrideWith(() => ids),
           playlistIdsNotifierProvider('日常').overrideWith(_Ids.new),
+          playlistIdsNotifierProvider('Bili 歌单').overrideWith(_Ids.new),
         ],
         child: MaterialApp(
             theme: AppStyle.theme,
@@ -558,7 +562,7 @@ void main() {
                 child: child!),
             home: const Scaffold(body: PlaylistPicker(trackId: 'one')))));
     await tester.pumpAndSettle();
-    expect(find.text('Bili 歌单'), findsNothing);
+    expect(find.text('Bili 歌单'), findsOneWidget);
     await tester.tap(find.byTooltip('取消收藏'));
     await tester.pump();
     expect(ids.calls, 1);

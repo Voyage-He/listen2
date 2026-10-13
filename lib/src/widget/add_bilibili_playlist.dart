@@ -178,7 +178,7 @@ class _AddPlaylistState extends ConsumerState<_AddPlaylist> {
                                     Text(
                                         _local
                                             ? '创建空白歌单，在应用内自由添加、移除歌曲。'
-                                            : '导入收藏夹中的歌曲，之后可刷新获取最新内容。',
+                                            : '导入收藏夹中的歌曲，登录所属账号后可同步收藏。',
                                         style: const TextStyle(
                                             fontSize: 12,
                                             height: 1.6,
@@ -217,7 +217,7 @@ class _AddPlaylistState extends ConsumerState<_AddPlaylist> {
                       Text(
                           _local
                               ? '保存在本机，不会在 Bilibili 创建收藏夹。'
-                              : '应用内的歌单修改不会写回 Bilibili 收藏夹。',
+                              : '收藏操作会同步到 Bilibili；其他用户的收藏夹仅可查看。',
                           style: const TextStyle(
                               fontSize: 12,
                               height: 1.6,

@@ -14,7 +14,9 @@ flutter test
 
 ## Bilibili 登录与收藏夹
 
-设置 → Bilibili 账号与收藏夹 → 获取登录二维码，用 Bilibili 手机客户端扫码确认。歌曲收藏面板的云朵图标打开该歌曲的 Bilibili 收藏状态，可直接添加或移除；账号页面支持新建收藏夹和导入自己的私密收藏夹。
+设置 → Bilibili 账号与收藏夹 → 获取登录二维码，用 Bilibili 手机客户端扫码确认。歌曲收藏面板的 Bilibili 图标打开该歌曲的平台收藏状态，可直接添加或移除；账号页面支持新建收藏夹和导入自己的私密收藏夹。
+
+导入歌单在列表与详情显示 Bilibili logo（复用 API 文档仓库的 SVG）。歌曲收藏面板也列出导入的收藏夹：添加/取消收藏会先校验登录与收藏夹归属，再写入平台；成功后更新该收藏夹的所有本地导入副本并刷新内容。未登录时可扫码后继续原操作，其他账号的收藏夹仅可查看。收藏写入期间收到的旧刷新结果不会覆盖新状态。
 
 接口依据本地 `bilibili-API-collect` 的 `docs/login/login_action/QR.md`、`docs/login/login_info.md`、`docs/login/exit.md`、`docs/fav/info.md`、`docs/fav/action.md` 和 `docs/video/action.md`。网页扫码轮询的四种状态均有处理，登录成功后通过 `/x/web-interface/nav` 校验身份，收藏写入携带 `bili_jct` 的 CSRF 值。
 

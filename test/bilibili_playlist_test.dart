@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -6,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:listen2/src/provider/global/storage.dart';
 import 'package:listen2/src/provider/repo/bilibili.dart';
+import 'package:listen2/src/provider/repo/bilibili_account.dart';
 import 'package:listen2/src/provider/repo/bilibili_playlists.dart';
 import 'package:listen2/src/provider/repo/playlist_names.dart';
 import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
@@ -27,11 +29,15 @@ class _Client extends BilibiliClient {
   Object? error;
   int requests = 0;
   String? requestedId;
+  Completer<List<BilibiliVideoModel>>? pending;
   @override
   Future<List<BilibiliVideoModel>> getFavoriteList(String mediaId) async {
     requests++;
     requestedId = mediaId;
     if (error != null) throw error!;
+    final paused = pending;
+    pending = null;
+    if (paused != null) return paused.future;
     return videos;
   }
 }
@@ -43,15 +49,59 @@ class _ClientNotifier extends BilibiliClientNotifier {
   Future<BilibiliClient> build() async => client;
 }
 
+class _SessionStore implements BilibiliSessionStore {
+  @override
+  Future<String?> read() async => null;
+  @override
+  Future<void> write(String _) async {}
+  @override
+  Future<void> delete() async {}
+}
+
+class _Account extends BilibiliAccountClient {
+  _Account() : super(_SessionStore());
+  bool owned = true;
+  bool saved = false;
+  Object? failure;
+  final writes = <(int, int, bool)>[];
+  void Function(bool)? onWrite;
+  @override
+  Future<BilibiliUser?> getLoggedInUser() async => user;
+  @override
+  Future<int> getVideoAid(String bvid) async => 456;
+  @override
+  Future<List<BilibiliFavoriteFolder>> getFavoriteFolders({int? avid}) async =>
+      owned
+          ? [
+              BilibiliFavoriteFolder(
+                  id: 12345,
+                  title: '常听',
+                  count: 2,
+                  isPrivate: false,
+                  containsVideo: saved)
+            ]
+          : [];
+  @override
+  Future<void> setFavorite(int avid, int folderId,
+      {required bool saved}) async {
+    if (failure != null) throw failure!;
+    writes.add((avid, folderId, saved));
+    this.saved = saved;
+    onWrite?.call(saved);
+  }
+}
+
 void main() {
   late Directory directory;
   late Storage storage;
   late _Client client;
+  late _Account account;
   late ProviderContainer container;
   ProviderContainer createContainer() => ProviderContainer(overrides: [
         hiveStorageProvider.overrideWith((ref) async => storage),
         bilibiliClientNotifierProvider
             .overrideWith(() => _ClientNotifier(client)),
+        bilibiliAccountClientProvider.overrideWithValue(account),
       ]);
 
   setUp(() async {
@@ -63,12 +113,14 @@ void main() {
         Storage(value, value, await Hive.openBox<Uint8List>('binary'), {});
     await value.put('favoriteplaylistTracksId', ['existing']);
     client = _Client(value);
+    account = _Account();
     container = createContainer();
     await container.read(hiveStorageProvider.future);
   });
 
   tearDown(() async {
     container.dispose();
+    account.close();
     await Hive.close();
     await directory.delete(recursive: true);
   });
@@ -235,14 +287,91 @@ void main() {
     expect(container.read(bilibiliPlaylistsProvider), isEmpty);
   });
 
-  test('imported playlists reject local song additions', () async {
+  test('imported playlists require login before changing platform favorites',
+      () async {
     await container.read(bilibiliPlaylistsProvider.notifier).add('常听', '12345');
     await expectLater(
         container.read(playlistIdsNotifierProvider('常听').notifier).add('song'),
-        throwsStateError);
+        throwsA(
+            isA<BilibiliApiException>().having((e) => e.code, 'code', -101)));
     expect(
         container.read(playlistIdsNotifierProvider('常听')), ['first', 'second']);
     expect(storage.value.get('常听playlistTracksId'), ['first', 'second']);
+  });
+
+  test(
+      'owned imported folders write to Bilibili and synchronize all local aliases',
+      () async {
+    account.user = const BilibiliUser(mid: 123, name: 'owner');
+    await container.read(bilibiliPlaylistsProvider.notifier).add('常听', '12345');
+    await container
+        .read(bilibiliPlaylistsProvider.notifier)
+        .add('同一个收藏夹', '12345');
+    account.onWrite = (saved) {
+      client.videos = [
+        _video('first'),
+        _video('second'),
+        if (saved) _video('song')
+      ];
+    };
+    await container
+        .read(playlistIdsNotifierProvider('常听').notifier)
+        .add('song');
+    expect(account.writes, [(456, 12345, true)]);
+    expect(container.read(playlistIdsNotifierProvider('常听')),
+        ['first', 'second', 'song']);
+    expect(container.read(playlistIdsNotifierProvider('同一个收藏夹')),
+        ['first', 'second', 'song']);
+    await container
+        .read(playlistIdsNotifierProvider('常听').notifier)
+        .delete('song');
+    expect(account.writes.last, (456, 12345, false));
+    expect(
+        container.read(playlistIdsNotifierProvider('常听')), ['first', 'second']);
+    expect(container.read(playlistIdsNotifierProvider('同一个收藏夹')),
+        ['first', 'second']);
+    expect(
+        container.read(playlistIdsNotifierProvider('favorite')), ['existing']);
+  });
+
+  test(
+      'foreign folders and failed platform writes do not alter the local snapshot',
+      () async {
+    account.user = const BilibiliUser(mid: 123, name: 'owner');
+    await container.read(bilibiliPlaylistsProvider.notifier).add('常听', '12345');
+    account.owned = false;
+    await expectLater(
+        container.read(playlistIdsNotifierProvider('常听').notifier).add('song'),
+        throwsA(
+            isA<BilibiliApiException>().having((e) => e.code, 'code', -403)));
+    expect(account.writes, isEmpty);
+    account.owned = true;
+    account.failure = const BilibiliApiException(-403, 'failed');
+    await expectLater(
+        container.read(playlistIdsNotifierProvider('常听').notifier).add('song'),
+        throwsA(isA<BilibiliApiException>()));
+    expect(
+        container.read(playlistIdsNotifierProvider('常听')), ['first', 'second']);
+    expect(storage.value.get('常听playlistTracksId'), ['first', 'second']);
+  });
+
+  test(
+      'successful server write survives a failed refresh and is not sent twice',
+      () async {
+    account.user = const BilibiliUser(mid: 123, name: 'owner');
+    await container.read(bilibiliPlaylistsProvider.notifier).add('常听', '12345');
+    client.error = StateError('offline after write');
+    await container
+        .read(playlistIdsNotifierProvider('常听').notifier)
+        .add('song');
+    expect(container.read(playlistIdsNotifierProvider('常听')),
+        ['song', 'first', 'second']);
+    await container
+        .read(playlistIdsNotifierProvider('常听').notifier)
+        .add('song');
+    expect(account.writes, [(456, 12345, true)]);
+    expect(
+        storage.value.get('常听playlistTracksId'), ['song', 'first', 'second']);
   });
 
   test('invalid and duplicate names cannot overwrite existing playlists',
@@ -255,6 +384,27 @@ void main() {
     await expectLater(sources.add('常听', '456'), throwsFormatException);
     expect(client.requests, 1);
     expect(container.read(bilibiliPlaylistsProvider), {'常听': '123'});
+  });
+
+  test(
+      'a refresh started before a platform write cannot restore stale membership',
+      () async {
+    account.user = const BilibiliUser(mid: 123, name: 'owner');
+    await container.read(bilibiliPlaylistsProvider.notifier).add('常听', '12345');
+    final oldResponse = Completer<List<BilibiliVideoModel>>();
+    client.pending = oldResponse;
+    final oldRefresh =
+        container.read(bilibiliPlaylistsProvider.notifier).refresh('常听');
+    await Future<void>.delayed(Duration.zero);
+    account.onWrite = (_) => client.videos = [_video('song'), _video('first')];
+    final write =
+        container.read(playlistIdsNotifierProvider('常听').notifier).add('song');
+    await Future<void>.delayed(Duration.zero);
+    oldResponse.complete([_video('first'), _video('second')]);
+    await oldRefresh;
+    await write;
+    expect(
+        container.read(playlistIdsNotifierProvider('常听')), ['song', 'first']);
   });
 
   test('network failure does not create a partial playlist', () async {

@@ -6,6 +6,9 @@ import 'package:listen2/src/provider/repo/playlist_tracks_id.dart';
 import 'package:listen2/src/widget/vinyl_deck.dart';
 import 'package:listen2/src/widget/add_bilibili_playlist.dart';
 import 'package:listen2/src/view/page/option/bilibili_account.page.dart';
+import 'package:listen2/src/widget/bilibili_logo.dart';
+import 'package:listen2/src/provider/repo/bilibili_account.dart';
+import 'package:music_api/music_api.dart';
 
 class PlaylistPicker extends ConsumerStatefulWidget {
   const PlaylistPicker({super.key, this.trackId});
@@ -19,6 +22,17 @@ class _PlaylistPickerState extends ConsumerState<PlaylistPicker> {
   String? _changingName;
   String? _message;
   bool _failed = false;
+  (String, bool)? _loginTarget;
+
+  Future<void> _login() async {
+    final target = _loginTarget;
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const BilibiliAccountPage()));
+    if (!mounted || target == null) return;
+    if (ref.read(bilibiliAccountClientProvider).user != null) {
+      await _setSaved(target.$1, target.$2);
+    }
+  }
 
   Future<void> _setSaved(String name, bool saved) async {
     final trackId = widget.trackId;
@@ -27,6 +41,7 @@ class _PlaylistPickerState extends ConsumerState<PlaylistPicker> {
       _changingName = name;
       _message = null;
       _failed = false;
+      _loginTarget = null;
     });
     try {
       final playlist = ref.read(playlistIdsNotifierProvider(name).notifier);
@@ -37,11 +52,22 @@ class _PlaylistPickerState extends ConsumerState<PlaylistPicker> {
       }
       if (!mounted) return;
       final title = name == 'favorite' ? '我喜欢的' : name;
-      setState(() => _message = saved ? '已收藏到「$title」' : '已从「$title」移除');
-    } catch (_) {
+      final remote = ref.read(bilibiliPlaylistsProvider).containsKey(name);
+      setState(() => _message = saved
+          ? '已收藏到${remote ? ' Bilibili ' : ''}「$title」'
+          : '已从${remote ? ' Bilibili ' : ''}「$title」移除');
+    } catch (error) {
       if (!mounted) return;
       setState(() {
-        _message = saved ? '收藏失败，请重试' : '取消收藏失败，请重试';
+        _message = error is BilibiliApiException
+            ? error.message
+            : saved
+                ? '收藏失败，请重试'
+                : '取消收藏失败，请重试';
+        if (error is BilibiliApiException && error.code == -101) {
+          _loginTarget = (name, saved);
+          ref.read(bilibiliAccountProvider.notifier).sessionExpired();
+        }
         _failed = true;
       });
     } finally {
@@ -52,9 +78,7 @@ class _PlaylistPickerState extends ConsumerState<PlaylistPicker> {
   @override
   Widget build(BuildContext context) {
     final trackId = widget.trackId;
-    final importedNames = trackId == null
-        ? <String>{}
-        : ref.watch(bilibiliPlaylistsProvider).keys.toSet();
+    final importedNames = ref.watch(bilibiliPlaylistsProvider).keys.toSet();
     return SafeArea(
       top: false,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -69,7 +93,7 @@ class _PlaylistPickerState extends ConsumerState<PlaylistPicker> {
                           fontWeight: FontWeight.w600))),
               IconButton(
                   tooltip: 'Bilibili 收藏夹',
-                  icon: const Icon(Icons.cloud_outlined),
+                  icon: const BilibiliLogo(size: 26),
                   onPressed: _changingName != null
                       ? null
                       : () => Navigator.of(context).push(MaterialPageRoute(
@@ -105,12 +129,22 @@ class _PlaylistPickerState extends ConsumerState<PlaylistPicker> {
                       height: 1.5)),
             ),
           ),
+        if (_loginTarget != null)
+          Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+              child: TextButton.icon(
+                  onPressed: _login,
+                  icon: const Icon(Icons.qr_code_rounded),
+                  label: const Text('扫码登录后继续'))),
+        if (trackId != null && importedNames.isNotEmpty)
+          const Padding(
+              padding: EdgeInsets.fromLTRB(24, 0, 24, 12),
+              child: Text('Bilibili 收藏夹中的收藏操作会同步到平台。',
+                  style: TextStyle(color: vinylOlive, fontSize: 12))),
         Expanded(
             child: ref.watch(playlistNamesProvider).when(
                   data: (allNames) {
-                    final names = allNames
-                        .where((name) => !importedNames.contains(name))
-                        .toList();
+                    final names = allNames;
                     return names.isEmpty
                         ? const Center(
                             child: Icon(Icons.library_music_outlined,
@@ -126,6 +160,7 @@ class _PlaylistPickerState extends ConsumerState<PlaylistPicker> {
                                   ref.watch(playlistIdsNotifierProvider(name));
                               final saved =
                                   trackId != null && ids.contains(trackId);
+                              final remote = importedNames.contains(name);
                               return Material(
                                   color: Colors.white.withOpacity(.7),
                                   borderRadius: BorderRadius.circular(18),
@@ -135,11 +170,13 @@ class _PlaylistPickerState extends ConsumerState<PlaylistPicker> {
                                       shape: RoundedRectangleBorder(
                                           borderRadius:
                                               BorderRadius.circular(18)),
-                                      leading: Icon(
-                                          name == 'favorite'
-                                              ? Icons.favorite_rounded
-                                              : Icons.album_rounded,
-                                          color: vinylOlive),
+                                      leading: remote
+                                          ? const BilibiliLogo()
+                                          : Icon(
+                                              name == 'favorite'
+                                                  ? Icons.favorite_rounded
+                                                  : Icons.album_rounded,
+                                              color: vinylOlive),
                                       title: Text(name == 'favorite' ? '我喜欢的' : name,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
@@ -147,7 +184,7 @@ class _PlaylistPickerState extends ConsumerState<PlaylistPicker> {
                                               color: vinylInk,
                                               fontWeight: FontWeight.w600)),
                                       subtitle: Text(
-                                          '${ids.length} 首歌曲${saved ? ' · 已收藏' : ''}'),
+                                          '${ids.length} 首歌曲${remote ? ' · Bilibili 收藏夹' : ''}${saved ? ' · 已收藏' : ''}'),
                                       trailing: _changingName == name
                                           ? const SizedBox(
                                               width: 24,
@@ -157,7 +194,9 @@ class _PlaylistPickerState extends ConsumerState<PlaylistPicker> {
                                                   color: vinylOlive))
                                           : saved
                                               ? IconButton(
-                                                  tooltip: '取消收藏',
+                                                  tooltip: remote
+                                                      ? '从 Bilibili 取消收藏'
+                                                      : '取消收藏',
                                                   onPressed:
                                                       _changingName != null
                                                           ? null

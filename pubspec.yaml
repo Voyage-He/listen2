@@ -55,6 +55,7 @@ dependencies:
   audio_session: ^0.1.21
   qr_flutter: ^4.1.0
   flutter_secure_storage: ^9.2.4
+  flutter_svg: 2.0.9
 
 dev_dependencies:
   flutter_test:
@@ -84,7 +85,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    # - assets/
+    - assets/branding/bilibili.svg
 
   # To add assets to your application, add an assets section, like this:
   # assets:

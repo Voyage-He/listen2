@@ -44,7 +44,10 @@ class PlaylistIdsNotifier extends _$PlaylistIdsNotifier {
 
   add(String id) async {
     if (ref.read(bilibiliPlaylistsProvider).containsKey(playlistName)) {
-      throw StateError('Bilibili 导入歌单不支持添加歌曲');
+      await ref
+          .read(bilibiliPlaylistsProvider.notifier)
+          .setFavorite(playlistName, id, saved: true);
+      return true;
     }
     var previousState = state;
     if (previousState.contains(id)) return;
@@ -57,6 +60,12 @@ class PlaylistIdsNotifier extends _$PlaylistIdsNotifier {
   }
 
   delete(String id) async {
+    if (ref.read(bilibiliPlaylistsProvider).containsKey(playlistName)) {
+      await ref
+          .read(bilibiliPlaylistsProvider.notifier)
+          .setFavorite(playlistName, id, saved: false);
+      return true;
+    }
     var previousState = state;
     if (!previousState.contains(id)) return;
 
@@ -73,7 +82,7 @@ class PlaylistIdsNotifier extends _$PlaylistIdsNotifier {
     if (ids.contains(id)) {
       await delete(id);
     } else {
-      add(id);
+      await add(id);
     }
   }
 }

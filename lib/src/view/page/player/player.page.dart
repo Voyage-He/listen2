@@ -12,6 +12,7 @@ import 'package:listen2/src/widget/player_background.dart';
 import 'package:listen2/src/widget/vinyl_deck.dart';
 import 'package:listen2/src/widget/playlist_picker.dart';
 import 'package:listen2/src/widget/player_tutorial.dart';
+import 'package:listen2/src/widget/record_shelf.dart';
 import 'package:listen2/src/view/page/playlist/playlist.dart';
 import 'package:listen2/src/view/page/option/option.page.dart';
 
@@ -171,13 +172,25 @@ class _PlayerState extends ConsumerState<Player> {
             return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Padding(
-                      padding: EdgeInsets.fromLTRB(24, 0, 24, 16),
-                      child: Text('唱片架',
-                          style: TextStyle(
-                              color: vinylInk,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w600))),
+                  Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 16, 12),
+                      child: Row(children: [
+                        const Expanded(
+                            child: Text('唱片架',
+                                style: TextStyle(
+                                    color: vinylInk,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w600))),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _showPlaylists();
+                          },
+                          icon: const Icon(Icons.library_music_outlined,
+                              size: 18),
+                          label: const Text('选歌单'),
+                        ),
+                      ])),
                   Expanded(
                       child: ids.isEmpty
                           ? const Center(
@@ -256,6 +269,23 @@ class _PlayerState extends ConsumerState<Player> {
     final singer = track?.singer.trim() ?? '';
     final playing = state.state == ap.PlayerState.playing;
     final textScaler = MediaQuery.textScalerOf(context);
+    final queue = track == null
+        ? <String>[]
+        : ref.watch(currentPlaylistNotifierProvider).playlist;
+    final index = track == null ? -1 : queue.indexOf(track.bvid);
+    VinylTrackPreview? previewAt(int target) {
+      if (index < 0 || target < 0 || target >= queue.length) return null;
+      return ref.watch(trackProvider(queue[target])).maybeWhen(
+            data: (item) => VinylTrackPreview(
+              title: item.title,
+              cover: TrackCover(item, fit: BoxFit.cover),
+            ),
+            orElse: () => null,
+          );
+    }
+
+    final previous = previewAt(index - 1);
+    final next = previewAt(index + 1);
     return GestureDetector(
         behavior: HitTestBehavior.opaque,
         onHorizontalDragStart:
@@ -349,6 +379,11 @@ class _PlayerState extends ConsumerState<Player> {
                               enabled: track != null,
                               busy: _busy,
                               unavailableDirection: _unavailableDirection,
+                              previousTrack: previous,
+                              nextTrack: next,
+                              canSkipPrevious: index > 0,
+                              canSkipNext:
+                                  index >= 0 && index + 1 < queue.length,
                               cover: const CurrentTrackCover(
                                   width: double.infinity,
                                   height: double.infinity,
@@ -364,7 +399,20 @@ class _PlayerState extends ConsumerState<Player> {
                               onScrubChanged: (value) {
                                 if (mounted) setState(() => _scrubbing = value);
                               }),
-                          const SizedBox(height: 22),
+                          const SizedBox(height: 12),
+                          RecordShelf(
+                            count: queue.length,
+                            busy: _busy,
+                            covers: [
+                              if (track != null)
+                                TrackCover(track, fit: BoxFit.cover),
+                              if (next != null) next.cover,
+                              if (previous != null) previous.cover,
+                            ],
+                            onOpenQueue: _showQueue,
+                            onChoosePlaylist: _showPlaylists,
+                          ),
+                          const SizedBox(height: 20),
                           SizedBox(
                               key: const ValueKey('player-track-title'),
                               width: double.infinity,

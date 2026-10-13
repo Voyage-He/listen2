@@ -388,6 +388,7 @@ void main() {
       autoplayOnStartupProvider.overrideWith(_PlaybackSettings.new),
       globalReadyProvider.overrideWith((ref) async {}),
       player.playerStateNotifierProvider.overrideWith(_SingleTrackPlayer.new),
+      currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),
       playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
       trackCoverProvider(_singleTrack).overrideWith((ref) async =>
           base64Decode('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==')),
@@ -444,6 +445,7 @@ void main() {
       autoplayOnStartupProvider.overrideWith(_PlaybackSettings.new),
       globalReadyProvider.overrideWith((ref) async {}),
       player.playerStateNotifierProvider.overrideWith(_SingleTrackPlayer.new),
+      currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),
       playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
       trackCoverProvider(_singleTrack).overrideWith((ref) async =>
           base64Decode('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==')),
@@ -481,6 +483,7 @@ void main() {
           backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
           player.playerStateNotifierProvider
               .overrideWith(_SingleTrackPlayer.new),
+          currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),
           playlistNamesProvider.overrideWith(_CollectionNames.new),
           bilibiliPlaylistsProvider.overrideWith(_CollectionSources.new),
           playlistIdsNotifierProvider('favorite').overrideWith(() => favorite),
@@ -699,6 +702,7 @@ void main() {
           overrides: [
             backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
             player.playerStateNotifierProvider.overrideWith(() => playback),
+            currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),
             playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
             trackCoverProvider(_singleTrack)
                 .overrideWith((ref) async => throw StateError('no cover')),
@@ -826,6 +830,7 @@ void main() {
           overrides: [
             backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
             player.playerStateNotifierProvider.overrideWith(() => playback),
+            currentPlaylistNotifierProvider.overrideWith(() => _ShelfQueue([])),
             playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
             for (final track in tracks)
               trackCoverProvider(track)
@@ -1004,6 +1009,67 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets(
+      'physical shelf opens the queue and playlist picker without a gesture',
+      (tester) async {
+    await pumpPage(tester, const Player());
+    final shelf = find.byKey(const ValueKey('record-shelf-open'));
+    await tester.ensureVisible(shelf);
+    await tester.tap(shelf);
+    await tester.pumpAndSettle();
+    expect(find.text('从歌单选择音乐，唱片会按顺序放入这里'), findsOneWidget);
+    final choose = find.descendant(
+        of: find.byType(BottomSheet), matching: find.text('选歌单'));
+    await tester.tap(choose);
+    await tester.pumpAndSettle();
+    expect(find.byType(PlaylistPicker), findsOneWidget);
+    expect(find.text('我喜欢的'), findsOneWidget);
+    Navigator.of(tester.element(find.byType(PlaylistPicker))).pop();
+    await tester.pumpAndSettle();
+    final playlists = find.byKey(const ValueKey('record-shelf-playlists'));
+    await tester.ensureVisible(playlists);
+    await tester.tap(playlists);
+    await tester.pumpAndSettle();
+    expect(find.byType(PlaylistPicker), findsOneWidget);
+    expect(find.text('我喜欢的'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('player previews the actual neighboring tracks from its queue',
+      (tester) async {
+    final tracks = [
+      Track('previous', '真正的上一张', '', ''),
+      _singleTrack,
+      Track('next', '真正的下一张', '', ''),
+    ];
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+          player.playerStateNotifierProvider
+              .overrideWith(_SingleTrackPlayer.new),
+          currentPlaylistNotifierProvider.overrideWith(
+              () => _ShelfQueue(tracks.map((track) => track.bvid).toList())),
+          for (final track in tracks) ...[
+            trackProvider(track.bvid).overrideWith((ref) async => track),
+            trackCoverProvider(track)
+                .overrideWith((ref) async => throw StateError('no cover')),
+          ],
+        ],
+        child: MaterialApp(
+            theme: AppStyle.theme, home: const Scaffold(body: Player()))));
+    await tester.pumpAndSettle();
+    final record = find.byKey(const ValueKey('vinyl-record'));
+    for (final direction in [-1, 1]) {
+      final drag = await tester.startGesture(tester.getCenter(record));
+      await drag.moveBy(Offset(direction * 70.0, 0));
+      await tester.pump();
+      expect(find.text(direction < 0 ? '真正的下一张' : '真正的上一张'), findsOneWidget);
+      await drag.cancel();
+      await tester.pumpAndSettle();
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('app starts at turntable and center long press opens playlists',
       (tester) async {
     await tester.pumpWidget(ProviderScope(overrides: [
@@ -1049,9 +1115,11 @@ void main() {
     await tester.drag(
         find.byKey(const ValueKey('vinyl-record')), const Offset(0, -100));
     await tester.pumpAndSettle();
-    expect(find.text('唱片架'), findsOneWidget);
+    final shelfHeading = find.descendant(
+        of: find.byType(BottomSheet), matching: find.text('唱片架'));
+    expect(shelfHeading, findsOneWidget);
     expect(find.text('从歌单选择音乐，唱片会按顺序放入这里'), findsOneWidget);
-    Navigator.of(tester.element(find.text('唱片架'))).pop();
+    Navigator.of(tester.element(shelfHeading)).pop();
     await tester.pumpAndSettle();
 
     await tester.drag(heading, const Offset(120, 0));

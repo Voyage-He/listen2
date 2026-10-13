@@ -9,11 +9,11 @@ class PlayerInstructions extends StatelessWidget {
   final VoidCallback onStartTutorial;
 
   static const _instructions = [
-    '01   长按中央标签打开歌单，选择歌曲。\n       也可以在首页唱片外左滑进入搜索，选择音乐。',
-    '02   把右下方唱针向上移到唱片上，开始播放。\n       向下移回支架，暂停播放。也可以轻点唱臂。',
+    '01   点击唱机下方「选歌单」，或长按中央标签，选择歌曲。\n       也可以在首页唱片外左滑进入搜索，选择音乐。',
+    '02   拿起右下方唱针，移到唱片上吸附后松手播放。\n       移回支架吸附后松手暂停；未到位会复原。也可以轻点唱臂。',
     '03   沿外圈沟槽顺时针旋转快进，逆时针快退。\n       每转一圈调整 60 秒，松手后定位。',
-    '04   在中央标签上向左拨换下一曲，向右拨换上一曲。\n       唱片架中的音乐按歌单顺序播放。',
-    '05   中央标签上滑打开唱片架，下滑收藏当前歌曲。\n       在收藏列表中选择本地歌单或「我喜欢的」。',
+    '04   中央标签左右拨动时可预览上一曲 / 下一曲。\n       出现「松手换」提示后松手切换，拖回则取消。',
+    '05   点按唱机下方唱片架，或在中央标签上滑，查看队列。\n       中央标签下滑收藏，在列表选择本地歌单或「我喜欢的」。',
     '06   在首页唱片外的区域右滑进入设置，左滑进入搜索。',
   ];
 
@@ -76,12 +76,20 @@ class _TutorialStep {
 const _tutorialSteps = [
   _TutorialStep(_TutorialGesture.library, '先选一张唱片',
       '按住中央标签，打开歌单，再选择一张练习唱片。回到播放器后，也可以这样找到你的音乐。', '长按中央标签', '已选好练习唱片'),
-  _TutorialStep(_TutorialGesture.arm, '让唱针落下',
-      '把右下方唱针向上移到唱片上，唱片就会转起来。向下移回支架可以暂停，轻点唱臂也可以。', '向上移动唱针，或轻点唱臂', '已学会控制唱针'),
+  _TutorialStep(
+      _TutorialGesture.arm,
+      '让唱针落下',
+      '拿起右下方唱针，移到唱片上吸附后松手播放；移回支架吸附后松手暂停。未到位会复原，轻点唱臂也可以。',
+      '移动唱针，吸附后松手；或轻点唱臂',
+      '已学会控制唱针'),
   _TutorialStep(_TutorialGesture.grooves, '沿沟槽转动',
       '沿高亮的外圈顺时针转动，快进；逆时针转动，快退。每转一圈调整 60 秒，松手后定位。', '在外圈转动，松手定位', '已调整练习唱片的进度'),
-  _TutorialStep(_TutorialGesture.skip, '拨到下一张',
-      '在中央标签上向左拨动，换下一曲；向右拨动，换上一曲。试着拨动，看看标签的变化。', '在中央标签上左右拨动', '已切换练习唱片'),
+  _TutorialStep(
+      _TutorialGesture.skip,
+      '拨到下一张',
+      '在中央标签上向左拨动预览下一曲，向右预览上一曲。出现「松手换」提示后松手切换，拖回则取消。',
+      '拨动标签，看到「松手换」后松手',
+      '已切换练习唱片'),
   _TutorialStep(_TutorialGesture.shelf, '翻看唱片架',
       '在中央标签上向上滑动，打开当前播放队列。唱片架里的音乐会按歌单顺序播放。', '在中央标签上向上滑动', '已打开练习唱片架'),
   _TutorialStep(_TutorialGesture.save, '收藏这一首',
@@ -204,6 +212,26 @@ class _PlayerTutorialState extends State<PlayerTutorial> {
                   playing: _playing,
                   position: _position,
                   duration: const Duration(minutes: 3),
+                  previousTrack: VinylTrackPreview(
+                    title:
+                        '练习唱片 ${String.fromCharCode(65 + (_recordIndex + 2) % 3)}',
+                    cover: ColoredBox(
+                        color: const [
+                      Color(0xFFBC7354),
+                      Color(0xFF657052),
+                      Color(0xFFDBBE7E)
+                    ][(_recordIndex + 2) % 3]),
+                  ),
+                  nextTrack: VinylTrackPreview(
+                    title:
+                        '练习唱片 ${String.fromCharCode(65 + (_recordIndex + 1) % 3)}',
+                    cover: ColoredBox(
+                        color: const [
+                      Color(0xFFBC7354),
+                      Color(0xFF657052),
+                      Color(0xFFDBBE7E)
+                    ][(_recordIndex + 1) % 3]),
+                  ),
                   cover: ColoredBox(
                     color: const [
                       Color(0xFFBC7354),

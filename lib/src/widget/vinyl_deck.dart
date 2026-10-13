@@ -11,6 +11,12 @@ const vinylOlive = Color(0xFF657052);
 const vinylGold = Color(0xFFDBBE7E);
 const vinylRevolution = Duration(seconds: 60);
 
+class VinylTrackPreview {
+  const VinylTrackPreview({required this.title, required this.cover});
+  final String title;
+  final Widget cover;
+}
+
 /// Shared dimensions keep the record, needle drawing and touch targets aligned.
 class VinylDeckGeometry {
   const VinylDeckGeometry(this.size);
@@ -62,6 +68,10 @@ class VinylDeck extends StatefulWidget {
       this.enabled = true,
       this.busy = false,
       this.unavailableDirection,
+      this.previousTrack,
+      this.nextTrack,
+      this.canSkipPrevious = true,
+      this.canSkipNext = true,
       this.onLabelLongPress,
       this.onLabelSwipeUp,
       this.onLabelSwipeDown,
@@ -76,6 +86,10 @@ class VinylDeck extends StatefulWidget {
   final bool enabled;
   final bool busy;
   final int? unavailableDirection;
+  final VinylTrackPreview? previousTrack;
+  final VinylTrackPreview? nextTrack;
+  final bool canSkipPrevious;
+  final bool canSkipNext;
   final Duration position;
   final Duration duration;
   final Widget cover;
@@ -117,10 +131,55 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
   Duration? _pendingSeek;
   Duration _scrubOrigin = Duration.zero;
   double? _armDrag;
+  bool _armHeld = false;
+  bool? _armSnap;
+  final _skipThresholdDirections = <int>{};
+
+  Offset get _labelMovement =>
+      _start == null || _end == null ? Offset.zero : _end! - _start!;
+
+  int? _skipDirection(Offset movement, {double threshold = 12}) => _swiping &&
+          movement.dx.abs() >= threshold &&
+          movement.dy.abs() < movement.dx.abs() * .65
+      ? (movement.dx < 0 ? 1 : -1)
+      : null;
+
+  bool _canSkip(int direction) =>
+      direction < 0 ? widget.canSkipPrevious : widget.canSkipNext;
+
+  void _releaseArm() => setState(() {
+        _armHeld = false;
+        _armDrag = null;
+        _armSnap = null;
+      });
+
+  void _dragArm(Offset position, VinylDeckGeometry geometry, double progress) {
+    final lowered = geometry.loweredAt(position, progress);
+    // Hysteresis holds the snap through small finger movements.
+    final snap = _armSnap == true && lowered >= .76
+        ? true
+        : _armSnap == false && lowered <= .24
+            ? false
+            : lowered >= .84
+                ? true
+                : lowered <= .16
+                    ? false
+                    : null;
+    if (snap != null && snap != _armSnap) HapticFeedback.selectionClick();
+    setState(() {
+      _armSnap = snap;
+      _armDrag = snap == null ? lowered : (snap ? 1 : 0);
+    });
+  }
 
   @override
   void didUpdateWidget(VinylDeck oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!_available) {
+      _armHeld = false;
+      _armDrag = null;
+      _armSnap = null;
+    }
     if (!widget.busy &&
         (oldWidget.busy || widget.position != oldWidget.position)) {
       _pendingSeek = null;
@@ -148,6 +207,7 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
     _pullOrigin = _pull.value;
     _start = position;
     _end = _start;
+    _skipThresholdDirections.clear();
     _sweep = 0;
     _scrubOrigin = widget.position;
     _lastAngle = math.atan2(local.dy, local.dx);
@@ -158,6 +218,13 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
     _end = position;
     if (_swiping) {
       final movement = _end! - _start!;
+      final direction = _skipDirection(movement, threshold: 48);
+      if (direction != null &&
+          _available &&
+          _canSkip(direction) &&
+          _skipThresholdDirections.add(direction)) {
+        HapticFeedback.selectionClick();
+      }
       final displacement = _dragOrigin + movement.dx * .18;
       _translation.value = 24 * displacement / (24 + displacement.abs());
       final pullingVertically =
@@ -186,12 +253,10 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
   }
 
   Future<void> _endRecord() async {
-    final movement =
-        _start == null || _end == null ? Offset.zero : _end! - _start!;
+    final movement = _labelMovement;
     final target = _target;
-    final swipe = _swiping &&
-        movement.dx.abs() >= 48 &&
-        movement.dy.abs() < movement.dx.abs() * .65;
+    final skipDirection = _skipDirection(movement, threshold: 48);
+    final swipe = skipDirection != null;
     final swipeDown =
         _swiping && movement.dy >= 48 && movement.dx.abs() < movement.dy * .65;
     final swipeUp = _swiping &&
@@ -210,8 +275,7 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
       HapticFeedback.selectionClick();
       widget.onLabelSwipeDown!();
     } else if (swipe) {
-      HapticFeedback.selectionClick();
-      await widget.onSkip(movement.dx < 0 ? 1 : -1);
+      await widget.onSkip(skipDirection);
     } else if (target != null) {
       HapticFeedback.selectionClick();
       await widget.onSeek(target);
@@ -264,6 +328,9 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                 .clamp(0.0, 1.0)
             : 0.0;
         final arm = _armDrag ?? (widget.playing ? 1.0 : 0.0);
+        final previewDirection =
+            _available ? _skipDirection(_labelMovement) : null;
+        final skipReady = _skipDirection(_labelMovement, threshold: 48) != null;
         return AspectRatio(
             aspectRatio: VinylDeckGeometry.aspectRatio,
             child: Container(
@@ -413,10 +480,56 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                                         cover: widget.cover)),
                               ))),
                     ),
+                    if (previewDirection != null)
+                      Positioned(
+                        left: previewDirection < 0 ? 12 : null,
+                        right: previewDirection > 0 ? 12 : null,
+                        top: record.top + diameter * .15,
+                        width: diameter * .4,
+                        child: IgnorePointer(
+                          child: Opacity(
+                            opacity:
+                                (_labelMovement.dx.abs() / 48).clamp(0.0, 1.0),
+                            child: Transform.translate(
+                              offset: MediaQuery.disableAnimationsOf(context)
+                                  ? Offset.zero
+                                  : Offset(
+                                      previewDirection *
+                                          24 *
+                                          (1 -
+                                              (_labelMovement.dx.abs() / 48)
+                                                  .clamp(0.0, 1.0)),
+                                      0),
+                              child: _SkipPreview(
+                                key: const ValueKey('vinyl-skip-preview'),
+                                direction: previewDirection,
+                                track: previewDirection < 0
+                                    ? widget.previousTrack
+                                    : widget.nextTrack,
+                                available: _canSkip(previewDirection),
+                                ready: skipReady,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (_armHeld)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _ArmLandingPainter(
+                                geometry, progress, _armSnap),
+                          ),
+                        ),
+                      ),
                     Positioned.fill(
+                        key: const ValueKey('tonearm-surface'),
                         child: TweenAnimationBuilder<double>(
                             tween: Tween(end: arm),
-                            duration: const Duration(milliseconds: 460),
+                            duration: _armHeld ||
+                                    MediaQuery.disableAnimationsOf(context)
+                                ? Duration.zero
+                                : const Duration(milliseconds: 260),
                             curve: Curves.easeInOutCubic,
                             builder: (context, value, _) => Stack(
                                   fit: StackFit.expand,
@@ -430,45 +543,69 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                                             ? () => widget
                                                 .onArmChanged(!widget.playing)
                                             : null,
-                                        child: GestureDetector(
-                                          key: const ValueKey('tonearm'),
-                                          dragStartBehavior:
-                                              DragStartBehavior.down,
-                                          onTap: _available
-                                              ? () {
-                                                  HapticFeedback
-                                                      .selectionClick();
-                                                  widget.onArmChanged(
-                                                      !widget.playing);
+                                        child: Listener(
+                                            // An accepted pan reports pointer cancellation as
+                                            // an end too. Clear the landing target first.
+                                            onPointerCancel: (_) =>
+                                                _releaseArm(),
+                                            child: GestureDetector(
+                                              key: const ValueKey('tonearm'),
+                                              dragStartBehavior:
+                                                  DragStartBehavior.down,
+                                              onPanDown: _available
+                                                  ? (_) => setState(
+                                                      () => _armHeld = true)
+                                                  : null,
+                                              onTapUp: (_) => _releaseArm(),
+                                              onTapCancel: () {
+                                                if (_armDrag == null) {
+                                                  _releaseArm();
                                                 }
-                                              : null,
-                                          onPanStart: _available
-                                              ? (_) => setState(() => _armDrag =
-                                                  widget.playing ? 1 : 0)
-                                              : null,
-                                          onPanUpdate: _available
-                                              ? (details) => setState(() =>
-                                                  _armDrag = geometry.loweredAt(
+                                              },
+                                              onTap: _available
+                                                  ? () {
+                                                      HapticFeedback
+                                                          .lightImpact();
+                                                      widget.onArmChanged(
+                                                          !widget.playing);
+                                                    }
+                                                  : null,
+                                              onPanStart: _available
+                                                  ? (_) => setState(() {
+                                                        _armHeld = true;
+                                                        _armDrag =
+                                                            widget.playing
+                                                                ? 1
+                                                                : 0;
+                                                        _armSnap = null;
+                                                      })
+                                                  : null,
+                                              onPanUpdate: _available
+                                                  ? (details) => _dragArm(
                                                       details.localPosition,
-                                                      progress))
-                                              : null,
-                                          onPanEnd: _available
-                                              ? (_) {
-                                                  final lowered =
-                                                      (_armDrag ?? arm) >= .5;
-                                                  setState(
-                                                      () => _armDrag = null);
-                                                  HapticFeedback
-                                                      .selectionClick();
-                                                  widget.onArmChanged(lowered);
-                                                }
-                                              : null,
-                                          onPanCancel: () =>
-                                              setState(() => _armDrag = null),
-                                          child: CustomPaint(
-                                              painter: _TonearmPainter(
-                                                  value, progress)),
-                                        )),
+                                                      geometry,
+                                                      progress)
+                                                  : null,
+                                              onPanEnd: _available
+                                                  ? (_) {
+                                                      final lowered = _armSnap;
+                                                      _releaseArm();
+                                                      if (lowered != null &&
+                                                          lowered !=
+                                                              widget.playing) {
+                                                        HapticFeedback
+                                                            .lightImpact();
+                                                        widget.onArmChanged(
+                                                            lowered);
+                                                      }
+                                                    }
+                                                  : null,
+                                              onPanCancel: _releaseArm,
+                                              child: CustomPaint(
+                                                  painter: _TonearmPainter(
+                                                      value, progress,
+                                                      lifted: _armHeld)),
+                                            ))),
                                     if (_target != null ||
                                         (widget.enabled &&
                                             widget.duration > Duration.zero))
@@ -498,6 +635,25 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                                           ]))),
                                   ],
                                 ))),
+                    if (_armHeld)
+                      Positioned(
+                        left: 16,
+                        right: 16,
+                        top: 14,
+                        child: IgnorePointer(
+                          child: Align(
+                            alignment: Alignment.topLeft,
+                            child: _DeckHint(
+                              key: const ValueKey('tonearm-grab-hint'),
+                              text: _armSnap == true
+                                  ? '松手落针播放'
+                                  : _armSnap == false
+                                      ? '松手归位暂停'
+                                      : '已拿起唱针 · 移到唱片或支架',
+                            ),
+                          ),
+                        ),
+                      ),
                     for (final direction in [-1, 1])
                       Positioned(
                         left: record.left + (direction > 0 ? diameter / 2 : 0),
@@ -565,6 +721,129 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                   ])),
             ));
       });
+}
+
+class _DeckHint extends StatelessWidget {
+  const _DeckHint({super.key, required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xEB262923),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: vinylGold.withOpacity(.4)),
+        ),
+        child: Text(text,
+            style:
+                const TextStyle(color: vinylCream, fontSize: 11, height: 1.4)),
+      );
+}
+
+class _SkipPreview extends StatelessWidget {
+  const _SkipPreview({
+    super.key,
+    required this.direction,
+    required this.track,
+    required this.available,
+    required this.ready,
+  });
+  final int direction;
+  final VinylTrackPreview? track;
+  final bool available;
+  final bool ready;
+
+  @override
+  Widget build(BuildContext context) {
+    final hint = !available
+        ? (direction < 0 ? '第一张了' : '最后一张了')
+        : ready
+            ? '松手换${direction < 0 ? '上一张' : '下一张'}'
+            : '继续拨动换曲';
+    return Semantics(
+      liveRegion: true,
+      label: '$hint${available && track != null ? '，${track!.title}' : ''}',
+      child: ExcludeSemantics(
+        child: Container(
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: vinylCream,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: ready && available ? vinylGold : const Color(0xFFB6A58A),
+                width: ready && available ? 2 : 1),
+            boxShadow: const [
+              BoxShadow(
+                  color: Color(0x66000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 5)),
+            ],
+          ),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (available) ...[
+              AspectRatio(
+                aspectRatio: 1,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: track?.cover ??
+                      const ColoredBox(
+                        color: Color(0xFFE5D8B6),
+                        child: Center(
+                            child:
+                                Icon(Icons.album_outlined, color: vinylOlive)),
+                      ),
+                ),
+              ),
+              const SizedBox(height: 7),
+              Text(track?.title ?? '唱片信息加载中…',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: vinylInk,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 5),
+            ],
+            Text(hint,
+                style: const TextStyle(
+                    color: vinylOlive, fontSize: 10, height: 1.4)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _ArmLandingPainter extends CustomPainter {
+  const _ArmLandingPainter(this.geometry, this.progress, this.snap);
+  final VinylDeckGeometry geometry;
+  final double progress;
+  final bool? snap;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final lowered in [false, true]) {
+      final tip = geometry.tip(lowered ? 1 : 0, progress);
+      final selected = snap == lowered;
+      canvas.drawCircle(tip, 22,
+          Paint()..color = vinylGold.withOpacity(selected ? .23 : .08));
+      canvas.drawCircle(
+          tip,
+          22,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = selected ? 2 : 1
+            ..color = vinylGold.withOpacity(selected ? .9 : .45));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ArmLandingPainter oldDelegate) =>
+      geometry.size != oldDelegate.geometry.size ||
+      progress != oldDelegate.progress ||
+      snap != oldDelegate.snap;
 }
 
 class _GlassTimeBubble extends StatelessWidget {
@@ -904,15 +1183,16 @@ class _PlinthPainter extends CustomPainter {
 }
 
 class _TonearmPainter extends CustomPainter {
-  _TonearmPainter(this.lowered, this.progress);
+  _TonearmPainter(this.lowered, this.progress, {this.lifted = false});
   final double lowered;
   final double progress;
+  final bool lifted;
   Size? _size;
   @override
   void paint(Canvas canvas, Size size) {
     _size = size;
     final pivot = _armPivot(size);
-    final tip = _armTip(size, lowered, progress);
+    final tip = _armTip(size, lowered, progress) + Offset(0, lifted ? -5 : 0);
     final elbow = _armElbow(size, tip);
     final armEnd = tip - (tip - elbow) / (tip - elbow).distance * 20;
     final path = Path()
@@ -920,7 +1200,7 @@ class _TonearmPainter extends CustomPainter {
       ..lineTo(elbow.dx, elbow.dy)
       ..lineTo(armEnd.dx, armEnd.dy);
     canvas.drawPath(
-        path.shift(const Offset(4, 6)),
+        path.shift(Offset(lifted ? 7 : 4, lifted ? 12 : 6)),
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 9
@@ -956,6 +1236,23 @@ class _TonearmPainter extends CustomPainter {
                   colors: [Color(0xFFE6D7B6), Color(0xFF97815A)])
               .createShader(Rect.fromCircle(center: pivot, radius: 12)));
     canvas.drawCircle(pivot, 4, Paint()..color = const Color(0xFF655A42));
+    if (lifted) {
+      canvas.drawCircle(
+          tip,
+          16,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5
+            ..color = vinylGold.withOpacity(.8));
+    }
+    canvas.save();
+    canvas.translate(tip.dx + (lifted ? 7 : 4), tip.dy + (lifted ? 12 : 6));
+    canvas.rotate(_cartridgeAngle(size, tip));
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(
+            const Rect.fromLTWH(-8, -30, 16, 27), const Radius.circular(3)),
+        Paint()..color = Colors.black.withOpacity(lifted ? .4 : .25));
+    canvas.restore();
     canvas.save();
     canvas.translate(tip.dx, tip.dy);
     canvas.rotate(_cartridgeAngle(size, tip));
@@ -989,5 +1286,7 @@ class _TonearmPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_TonearmPainter oldDelegate) =>
-      oldDelegate.lowered != lowered || oldDelegate.progress != progress;
+      oldDelegate.lowered != lowered ||
+      oldDelegate.progress != progress ||
+      oldDelegate.lifted != lifted;
 }

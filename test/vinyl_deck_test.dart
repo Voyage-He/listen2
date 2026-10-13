@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:listen2/src/widget/vinyl_deck.dart';
 
@@ -33,7 +34,13 @@ void main() {
 
   Future<void> pumpDeck(WidgetTester tester,
       {bool enabled = true,
+      bool playing = false,
+      bool busy = false,
       bool reduceMotion = false,
+      bool canSkipNext = true,
+      bool canSkipPrevious = true,
+      VinylTrackPreview? previousTrack,
+      VinylTrackPreview? nextTrack,
       VoidCallback? longPress,
       VoidCallback? swipeUp,
       VoidCallback? swipeDown,
@@ -51,8 +58,13 @@ void main() {
                 child: SizedBox(
           width: 360,
           child: VinylDeck(
-              playing: false,
+              playing: playing,
               enabled: enabled,
+              busy: busy,
+              previousTrack: previousTrack,
+              nextTrack: nextTrack,
+              canSkipNext: canSkipNext,
+              canSkipPrevious: canSkipPrevious,
               onLabelLongPress: longPress,
               onLabelSwipeUp: swipeUp,
               onLabelSwipeDown: swipeDown,
@@ -136,6 +148,196 @@ void main() {
     await drag.up();
     await tester.pumpAndSettle();
     expect(moves.last, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'tonearm only commits at a landing zone and cancellation restores it',
+      (tester) async {
+    final moves = <bool>[];
+    await pumpDeck(tester, arm: (value) async => moves.add(value));
+    final deck = tester.getRect(find.byType(VinylDeck));
+    final geometry = VinylDeckGeometry(deck.size);
+    final origin = deck.topLeft + geometry.parkedTip;
+    final halfway = deck.topLeft + geometry.tip(.5, .25);
+    final partial = await tester.startGesture(origin);
+    await partial.moveTo(halfway);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsOneWidget);
+    expect(find.text('松手落针播放'), findsNothing);
+    await partial.up();
+    await tester.pumpAndSettle();
+    expect(moves, isEmpty);
+    expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsNothing);
+
+    final cancelled = await tester.startGesture(origin);
+    await cancelled.moveTo(deck.topLeft + geometry.tip(1, .25));
+    await tester.pump();
+    expect(find.text('松手落针播放'), findsOneWidget);
+    await cancelled.cancel();
+    await tester.pumpAndSettle();
+    expect(moves, isEmpty);
+    expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsNothing);
+
+    await pumpDeck(tester,
+        playing: true,
+        reduceMotion: true,
+        arm: (value) async => moves.add(value));
+    final returned =
+        await tester.startGesture(deck.topLeft + geometry.tip(1, .25));
+    await returned.moveTo(origin);
+    await tester.pump();
+    expect(find.text('松手归位暂停'), findsOneWidget);
+    await returned.up();
+    await tester.pumpAndSettle();
+    expect(moves, [false]);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'tonearm snap survives small finger jitter and follows dragging immediately',
+      (tester) async {
+    final moves = <bool>[];
+    await pumpDeck(tester, arm: (value) async => moves.add(value));
+    final deck = tester.getRect(find.byType(VinylDeck));
+    final geometry = VinylDeckGeometry(deck.size);
+    final drag = await tester.startGesture(deck.topLeft + geometry.parkedTip);
+    await drag.moveTo(deck.topLeft + geometry.tip(.9, .25));
+    await tester.pump();
+    expect(find.text('松手落针播放'), findsOneWidget);
+    final armTween = tester.widget<TweenAnimationBuilder<double>>(
+        find.descendant(
+            of: find.byType(VinylDeck),
+            matching: find.byType(TweenAnimationBuilder<double>)));
+    expect(armTween.duration, Duration.zero);
+    await drag.moveTo(deck.topLeft + geometry.tip(.8, .25));
+    await tester.pump();
+    expect(find.text('松手落针播放'), findsOneWidget);
+    await drag.up();
+    await tester.pumpAndSettle();
+    expect(moves, [true]);
+  });
+
+  testWidgets(
+      'becoming busy releases a grabbed arm without committing playback',
+      (tester) async {
+    final moves = <bool>[];
+    Future<void> onArm(bool value) async => moves.add(value);
+    await pumpDeck(tester, arm: onArm);
+    final rect = tester.getRect(find.byType(VinylDeck));
+    final geometry = VinylDeckGeometry(rect.size);
+    final drag = await tester.startGesture(rect.topLeft + geometry.parkedTip);
+    await drag.moveTo(rect.topLeft + geometry.tip(1, .25));
+    await tester.pump();
+    expect(find.text('松手落针播放'), findsOneWidget);
+    await pumpDeck(tester, busy: true, arm: onArm);
+    expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsNothing);
+    await drag.up();
+    await tester.pumpAndSettle();
+    expect(moves, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'track preview follows direction and threshold haptic fires once per direction',
+      (tester) async {
+    final haptics = <String>[];
+    tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'HapticFeedback.vibrate') {
+        haptics.add(call.arguments as String);
+      }
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null));
+    final skips = <int>[];
+    await pumpDeck(tester,
+        previousTrack: const VinylTrackPreview(
+            title: '前一张封面', cover: ColoredBox(color: Colors.blue)),
+        nextTrack: const VinylTrackPreview(
+            title: '下一张封面', cover: ColoredBox(color: Colors.red)),
+        skip: (value) async => skips.add(value));
+    final center = tester.getCenter(find.byKey(const ValueKey('vinyl-record')));
+    final drag = await tester.startGesture(center);
+    await drag.moveTo(center + const Offset(-30, 0));
+    await tester.pump();
+    expect(find.text('下一张封面'), findsOneWidget);
+    expect(find.text('继续拨动换曲'), findsOneWidget);
+    expect(haptics, isEmpty);
+    await drag.moveTo(center + const Offset(-60, 0));
+    await tester.pump();
+    expect(find.text('松手换下一张'), findsOneWidget);
+    expect(haptics, ['HapticFeedbackType.selectionClick']);
+    expect(skips, isEmpty);
+    await drag.moveTo(center + const Offset(-40, 0));
+    await drag.moveTo(center + const Offset(-65, 0));
+    await tester.pump();
+    expect(haptics, hasLength(1));
+    await drag.moveTo(center + const Offset(65, 0));
+    await tester.pump();
+    expect(find.text('前一张封面'), findsOneWidget);
+    expect(find.text('松手换上一张'), findsOneWidget);
+    expect(haptics, hasLength(2));
+    await drag.up();
+    await tester.pumpAndSettle();
+    expect(skips, [-1]);
+    expect(haptics, hasLength(2));
+    expect(find.byKey(const ValueKey('vinyl-skip-preview')), findsNothing);
+  });
+
+  testWidgets(
+      'short swipes, dragging back and cancelled previews do not switch tracks',
+      (tester) async {
+    final skips = <int>[];
+    await pumpDeck(tester, skip: (value) async => skips.add(value));
+    final center = tester.getCenter(find.byKey(const ValueKey('vinyl-record')));
+    for (final cancel in [false, true]) {
+      final drag = await tester.startGesture(center);
+      await drag.moveTo(center + const Offset(-70, 0));
+      await tester.pump();
+      expect(find.text('松手换下一张'), findsOneWidget);
+      if (cancel) {
+        await drag.cancel();
+      } else {
+        await drag.moveTo(center + const Offset(-30, 0));
+        await drag.up();
+      }
+      await tester.pumpAndSettle();
+      expect(skips, isEmpty);
+      expect(find.byKey(const ValueKey('vinyl-skip-preview')), findsNothing);
+    }
+    await tester.dragFrom(center, const Offset(30, 0));
+    await tester.pumpAndSettle();
+    expect(skips, isEmpty);
+  });
+
+  testWidgets('queue boundaries show a reason without a ready-to-switch cue',
+      (tester) async {
+    await pumpDeck(tester,
+        canSkipNext: false, canSkipPrevious: false, reduceMotion: true);
+    final center = tester.getCenter(find.byKey(const ValueKey('vinyl-record')));
+    for (final direction in [-1, 1]) {
+      final drag = await tester.startGesture(center);
+      await drag.moveBy(Offset(direction * 90.0, 0));
+      await tester.pump();
+      expect(find.text(direction < 0 ? '最后一张了' : '第一张了'), findsOneWidget);
+      expect(find.textContaining('松手换'), findsNothing);
+      await drag.up();
+      await tester.pumpAndSettle();
+    }
+  });
+
+  testWidgets('an empty record does not pretend to preview a neighboring track',
+      (tester) async {
+    await pumpDeck(tester, enabled: false, swipeUp: () {});
+    final record = find.byKey(const ValueKey('vinyl-record'));
+    final drag = await tester.startGesture(tester.getCenter(record));
+    await drag.moveBy(const Offset(-80, 0));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('vinyl-skip-preview')), findsNothing);
+    await drag.up();
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 

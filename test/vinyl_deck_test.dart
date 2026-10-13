@@ -143,12 +143,105 @@ void main() {
     await tester.pumpAndSettle();
     expect(moves, [true]);
     final drag = await tester.startGesture(tip);
+    await tester.pump(vinylArmGrabDelay);
     await drag.moveBy(const Offset(0, -100));
     await tester.pump();
     await drag.up();
     await tester.pumpAndSettle();
     expect(moves.last, isTrue);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'quick tonearm taps stay visually steady and toggle playback on release',
+      (tester) async {
+    for (final playing in [false, true]) {
+      final moves = <bool>[];
+      await pumpDeck(tester,
+          playing: playing,
+          reduceMotion: true,
+          arm: (value) async => moves.add(value));
+      final deck = tester.getRect(find.byType(VinylDeck));
+      final geometry = VinylDeckGeometry(deck.size);
+      final tip = deck.topLeft + geometry.tip(playing ? 1 : 0, .25);
+      CustomPainter painter() => tester
+          .widget<CustomPaint>(find.descendant(
+              of: find.byKey(const ValueKey('tonearm')),
+              matching: find.byType(CustomPaint)))
+          .painter!;
+      final resting = painter();
+      final tap = await tester.startGesture(tip);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tap.moveBy(const Offset(2, -2));
+      await tester.pump(const Duration(milliseconds: 30));
+      expect(painter().shouldRepaint(resting), isFalse,
+          reason: 'A short press must not lift or move the tonearm');
+      expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsNothing);
+      expect(moves, isEmpty);
+      await tap.up();
+      await tester.pumpAndSettle();
+      expect(moves, [!playing]);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsNothing);
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets(
+      'tonearm grabs after the hold delay and holding without dragging does not toggle',
+      (tester) async {
+    final moves = <bool>[];
+    await pumpDeck(tester, arm: (value) async => moves.add(value));
+    final rect = tester.getRect(find.byType(VinylDeck));
+    final geometry = VinylDeckGeometry(rect.size);
+    final hold = await tester.startGesture(rect.topLeft + geometry.parkedTip);
+    await tester.pump(vinylArmGrabDelay - const Duration(milliseconds: 1));
+    expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsNothing);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsOneWidget);
+    await hold.up();
+    await tester.pumpAndSettle();
+    expect(moves, isEmpty);
+
+    final drag = await tester.startGesture(rect.topLeft + geometry.parkedTip);
+    await drag.moveTo(rect.topLeft + geometry.tip(1, .25));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsNothing);
+    await tester.pump(vinylArmGrabDelay - const Duration(milliseconds: 100));
+    expect(find.text('松手落针播放'), findsOneWidget);
+    await drag.up();
+    await tester.pumpAndSettle();
+    expect(moves, [true]);
+  });
+
+  testWidgets(
+      'early releases, cancellation, busy state and disposal cancel a pending arm grab',
+      (tester) async {
+    final moves = <bool>[];
+    for (final ending in ['release', 'cancel', 'busy', 'dispose']) {
+      await pumpDeck(tester, arm: (value) async => moves.add(value));
+      final rect = tester.getRect(find.byType(VinylDeck));
+      final geometry = VinylDeckGeometry(rect.size);
+      final drag = await tester.startGesture(rect.topLeft + geometry.parkedTip);
+      await drag.moveTo(rect.topLeft + geometry.tip(1, .25));
+      await tester.pump(const Duration(milliseconds: 100));
+      if (ending == 'release') {
+        await drag.up();
+      } else if (ending == 'cancel') {
+        await drag.cancel();
+      } else if (ending == 'busy') {
+        await pumpDeck(tester,
+            busy: true, arm: (value) async => moves.add(value));
+        await drag.up();
+      } else {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await drag.up();
+      }
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsNothing);
+      expect(moves, isEmpty);
+      expect(tester.takeException(), isNull);
+    }
   });
 
   testWidgets(
@@ -229,6 +322,7 @@ void main() {
     final origin = deck.topLeft + geometry.parkedTip;
     final halfway = deck.topLeft + geometry.tip(.5, .25);
     final partial = await tester.startGesture(origin);
+    await tester.pump(vinylArmGrabDelay);
     await partial.moveTo(halfway);
     await tester.pump();
     expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsOneWidget);
@@ -239,6 +333,7 @@ void main() {
     expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsNothing);
 
     final cancelled = await tester.startGesture(origin);
+    await tester.pump(vinylArmGrabDelay);
     await cancelled.moveTo(deck.topLeft + geometry.tip(1, .25));
     await tester.pump();
     expect(find.text('松手落针播放'), findsOneWidget);
@@ -253,6 +348,7 @@ void main() {
         arm: (value) async => moves.add(value));
     final returned =
         await tester.startGesture(deck.topLeft + geometry.tip(1, .25));
+    await tester.pump(vinylArmGrabDelay);
     await returned.moveTo(origin);
     await tester.pump();
     expect(find.text('松手归位暂停'), findsOneWidget);
@@ -270,6 +366,7 @@ void main() {
     final deck = tester.getRect(find.byType(VinylDeck));
     final geometry = VinylDeckGeometry(deck.size);
     final drag = await tester.startGesture(deck.topLeft + geometry.parkedTip);
+    await tester.pump(vinylArmGrabDelay);
     await drag.moveTo(deck.topLeft + geometry.tip(.9, .25));
     await tester.pump();
     expect(find.text('松手落针播放'), findsOneWidget);
@@ -295,6 +392,7 @@ void main() {
     final rect = tester.getRect(find.byType(VinylDeck));
     final geometry = VinylDeckGeometry(rect.size);
     final drag = await tester.startGesture(rect.topLeft + geometry.parkedTip);
+    await tester.pump(vinylArmGrabDelay);
     await drag.moveTo(rect.topLeft + geometry.tip(1, .25));
     await tester.pump();
     expect(find.text('松手落针播放'), findsOneWidget);

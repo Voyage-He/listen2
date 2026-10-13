@@ -10,6 +10,7 @@ const vinylInk = Color(0xFF262923);
 const vinylOlive = Color(0xFF657052);
 const vinylGold = Color(0xFFDBBE7E);
 const vinylRevolution = Duration(seconds: 60);
+const vinylArmGrabDelay = Duration(milliseconds: 260);
 
 class VinylTrackPreview {
   const VinylTrackPreview({required this.title, required this.cover});
@@ -112,6 +113,7 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
   @override
   void dispose() {
     _longPressTimer?.cancel();
+    _clearArm();
     _translation.dispose();
     _pull.dispose();
     _press.dispose();
@@ -135,6 +137,8 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
   bool? _armSnap;
   int? _armPointer;
   Offset? _armPressOrigin;
+  Offset? _armLastPosition;
+  Timer? _armGrabTimer;
   bool _armMoved = false;
   final _skipThresholdDirections = <int>{};
 
@@ -151,49 +155,71 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
       direction < 0 ? widget.canSkipPrevious : widget.canSkipNext;
 
   void _clearArm() {
+    _armGrabTimer?.cancel();
+    _armGrabTimer = null;
     _armHeld = false;
     _armDrag = null;
     _armSnap = null;
     _armPointer = null;
     _armPressOrigin = null;
+    _armLastPosition = null;
     _armMoved = false;
   }
 
   void _releaseArm() => setState(_clearArm);
 
-  void _startArm(PointerDownEvent event, double lowered) {
+  void _startArm(PointerDownEvent event, VinylDeckGeometry geometry) {
     if (!_available || _armPointer != null) return;
-    setState(() {
-      _armPointer = event.pointer;
-      _armPressOrigin = event.localPosition;
-      _armMoved = false;
-      _armHeld = true;
-      _armDrag = lowered;
-      _armSnap = null;
+    // Own the pointer immediately, but keep tap feedback visually steady.
+    _armPointer = event.pointer;
+    _armPressOrigin = event.localPosition;
+    _armLastPosition = event.localPosition;
+    _armMoved = false;
+    _armGrabTimer = Timer(vinylArmGrabDelay, () {
+      if (!mounted || !_available || _armPointer != event.pointer) return;
+      setState(() {
+        _armHeld = true;
+        _armDrag = widget.playing ? 1 : 0;
+        _armSnap = null;
+      });
+      if (_armMoved) {
+        final progress = widget.duration > Duration.zero
+            ? (widget.position.inMilliseconds / widget.duration.inMilliseconds)
+                .clamp(0.0, 1.0)
+            : 0.0;
+        _dragArm(_armLastPosition!, geometry, progress);
+      }
     });
   }
 
   void _moveArm(
       PointerMoveEvent event, VinylDeckGeometry geometry, double progress) {
     if (event.pointer != _armPointer || !_available) return;
+    _armLastPosition = event.localPosition;
     final distance = (event.localPosition - _armPressOrigin!).distance;
     if (distance >
         computeHitSlop(event.kind, MediaQuery.gestureSettingsOf(context))) {
       _armMoved = true;
     }
-    if (_armMoved) _dragArm(event.localPosition, geometry, progress);
+    if (_armHeld && _armMoved) {
+      _dragArm(event.localPosition, geometry, progress);
+    }
   }
 
   void _endArm(PointerUpEvent event) {
     if (event.pointer != _armPointer) return;
     final moved = _armMoved;
+    final grabbed = _armHeld;
     final lowered = _armSnap;
     _releaseArm();
     if (!_available) return;
-    if (!moved) {
+    if (!grabbed && !moved) {
       HapticFeedback.lightImpact();
       widget.onArmChanged(!widget.playing);
-    } else if (lowered != null && lowered != widget.playing) {
+    } else if (grabbed &&
+        moved &&
+        lowered != null &&
+        lowered != widget.playing) {
       HapticFeedback.lightImpact();
       widget.onArmChanged(lowered);
     }
@@ -603,7 +629,7 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                                             behavior:
                                                 HitTestBehavior.deferToChild,
                                             onPointerDown: (event) =>
-                                                _startArm(event, value),
+                                                _startArm(event, geometry),
                                             onPointerMove: (event) => _moveArm(
                                                 event, geometry, progress),
                                             onPointerUp: _endArm,

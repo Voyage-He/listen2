@@ -26,7 +26,7 @@ class Home extends ConsumerWidget {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                const Text('LISTEN 2',
+                const Text('Tacto',
                     style: TextStyle(
                         fontSize: 12,
                         letterSpacing: 3,

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +13,7 @@ import 'package:listen2/src/widget/vinyl_deck.dart';
 import 'package:listen2/src/widget/playlist_picker.dart';
 import 'package:listen2/src/widget/player_tutorial.dart';
 import 'package:listen2/src/widget/record_shelf.dart';
+import 'package:listen2/src/widget/player_queue.dart';
 import 'package:listen2/src/view/page/playlist/playlist.dart';
 import 'package:listen2/src/view/page/option/option.page.dart';
 
@@ -249,89 +249,17 @@ class _PlayerState extends ConsumerState<Player> {
       backgroundColor: vinylCream,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (context) => SizedBox(
-          height: MediaQuery.of(context).size.height * .65,
-          child: Consumer(builder: (context, ref, _) {
-            final track = ref.watch(
-                playerStateNotifierProvider.select((state) => state.track));
-            final ids = track == null
-                ? <String>[]
-                : ref.watch(currentPlaylistNotifierProvider).playlist;
-            return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 0, 16, 12),
-                      child: Row(children: [
-                        const Expanded(
-                            child: Text('播放列表',
-                                style: TextStyle(
-                                    color: vinylInk,
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w600))),
-                        TextButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _showPlaylists();
-                          },
-                          icon: const Icon(Icons.library_music_outlined,
-                              size: 18),
-                          label: const Text('选歌单'),
-                        ),
-                      ])),
-                  Expanded(
-                      child: ids.isEmpty
-                          ? const Center(
-                              child: Padding(
-                                  padding: EdgeInsets.all(24),
-                                  child: Text('从歌单选择音乐，唱片会按顺序放入这里',
-                                      textAlign: TextAlign.center)))
-                          : ScrollConfiguration(
-                              behavior: ScrollConfiguration.of(context)
-                                  .copyWith(dragDevices: {
-                                ...ScrollConfiguration.of(context).dragDevices,
-                                PointerDeviceKind.mouse,
-                              }),
-                              child: ListView.builder(
-                                  itemCount: ids.length,
-                                  itemBuilder: (context, index) => ref
-                                      .watch(trackProvider(ids[index]))
-                                      .when(
-                                        data: (item) => ListTile(
-                                            leading: Icon(
-                                                ids[index] == track?.bvid
-                                                    ? Icons.album_rounded
-                                                    : Icons.album_outlined,
-                                                color: vinylOlive),
-                                            title: Text(item.title,
-                                                maxLines: 1,
-                                                overflow:
-                                                    TextOverflow.ellipsis),
-                                            subtitle: Text(item.singer,
-                                                maxLines: 1,
-                                                overflow:
-                                                    TextOverflow.ellipsis),
-                                            onTap: () {
-                                              Navigator.pop(context);
-                                              _run(() => ref
-                                                  .read(
-                                                      currentPlaylistNotifierProvider
-                                                          .notifier)
-                                                  .play(ids[index], ids));
-                                            }),
-                                        loading: () => const ListTile(
-                                            title: Text('正在取出唱片…')),
-                                        error: (_, __) => ListTile(
-                                            title: const Text('唱片加载失败'),
-                                            trailing: IconButton(
-                                                tooltip: '重试',
-                                                icon: const Icon(Icons.refresh),
-                                                onPressed: () => ref.invalidate(
-                                                    trackProvider(
-                                                        ids[index])))),
-                                      )))),
-                ]);
-          })),
+      builder: (sheetContext) => SizedBox(
+        height: MediaQuery.sizeOf(sheetContext).height * .65,
+        child: PlayerQueue(
+          onChoosePlaylist: () {
+            Navigator.of(sheetContext).pop();
+            unawaited(_showPlaylists());
+          },
+          onPlay: (id, ids) => _run(() =>
+              ref.read(currentPlaylistNotifierProvider.notifier).play(id, ids)),
+        ),
+      ),
     );
   }
 
@@ -421,7 +349,7 @@ class _PlayerState extends ConsumerState<Player> {
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      Text('LISTEN 2',
+                      Text('Tacto',
                           style: TextStyle(
                               fontSize: 11,
                               letterSpacing: 3,

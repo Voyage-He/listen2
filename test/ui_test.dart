@@ -439,7 +439,7 @@ void main() {
     await tester.pumpWidget(UncontrolledProviderScope(
         container: container, child: const ListenApp()));
     await tester.pumpAndSettle();
-    await tester.drag(find.text('LISTEN 2'), const Offset(120, 0));
+    await tester.drag(find.text('Tacto'), const Offset(120, 0));
     await tester.pumpAndSettle();
     final blur = find.byKey(const ValueKey('background-blur-slider'));
     final gradient = find.byKey(const ValueKey('background-gradient-slider'));
@@ -497,14 +497,14 @@ void main() {
         const Rect.fromLTWH(0, 0, 390, 844));
     expect(tester.getRect(find.byType(ImageFiltered)),
         const Rect.fromLTWH(0, 0, 390, 844));
-    expect(tester.getRect(find.text('LISTEN 2')).top, greaterThanOrEqualTo(59));
+    expect(tester.getRect(find.text('Tacto')).top, greaterThanOrEqualTo(59));
     expect(
         tester
             .getRect(find.byKey(const ValueKey('player-track-singer')))
             .bottom,
         lessThanOrEqualTo(810));
 
-    await tester.drag(find.text('LISTEN 2'), const Offset(120, 0));
+    await tester.drag(find.text('Tacto'), const Offset(120, 0));
     await tester.pumpAndSettle();
     expect(tester.getRect(find.byType(PageSurface)),
         const Rect.fromLTWH(0, 0, 390, 844));
@@ -854,6 +854,84 @@ void main() {
     expect(find.byType(ListView), findsNothing);
   });
 
+  for (final scale in [1.0, 1.6]) {
+    testWidgets(
+        'queue locates and briefly highlights the current track at $scale',
+        (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final tracks = List.generate(
+          60, (index) => Track('record-$index', 'Record $index', 'Artist', ''));
+      final playback = _Player();
+      final queue = _ShelfQueue(tracks.map((track) => track.bvid).toList());
+      await tester.pumpWidget(ProviderScope(
+          overrides: [
+            backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+            player.playerStateNotifierProvider.overrideWith(() => playback),
+            currentPlaylistNotifierProvider.overrideWith(() => queue),
+            for (final track in tracks) ...[
+              trackProvider(track.bvid).overrideWith((ref) async => track),
+              trackCoverProvider(track)
+                  .overrideWith((ref) async => throw StateError('no cover')),
+            ],
+          ],
+          child: MaterialApp(
+              theme: AppStyle.theme,
+              builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(context)
+                      .copyWith(textScaler: TextScaler.linear(scale)),
+                  child: child!),
+              home: const Scaffold(body: Player(isHome: true)))));
+      await tester.pumpAndSettle();
+      expect(find.text('Tacto'), findsOneWidget);
+      expect(find.text('LISTEN 2'), findsNothing);
+      playback.select(tracks[30]);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('record-shelf-open')));
+      await tester.pumpAndSettle();
+      final list = find.byType(ListView);
+      final current = find.byKey(const ValueKey('queue-track-30'));
+      expect(find.descendant(of: list, matching: find.text('Record 30')),
+          findsOneWidget);
+      expect(tester.getRect(current).center.dy,
+          closeTo(tester.getRect(list).center.dy, 1));
+      Color focusColor(int index) => (tester
+              .widget<AnimatedContainer>(
+                  find.byKey(ValueKey('queue-focus-$index')))
+              .decoration as BoxDecoration)
+          .color!;
+      expect(focusColor(30), vinylGold.withOpacity(.38));
+      expect(tester.widget<ListTile>(current).selected, isTrue);
+      final scrollable =
+          find.descendant(of: list, matching: find.byType(Scrollable));
+      await tester.scrollUntilVisible(find.text('Record 59'), 250,
+          scrollable: scrollable);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('queue-locate-current')));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(current).center.dy,
+          closeTo(tester.getRect(list).center.dy, 1));
+      expect(focusColor(30), vinylGold.withOpacity(.38));
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      expect(focusColor(30), vinylOlive.withOpacity(.08));
+      expect(tester.widget<ListTile>(current).selected, isTrue);
+      playback.select(tracks[12]);
+      await tester.pumpAndSettle();
+      expect(find.descendant(of: list, matching: find.text('Record 12')),
+          findsOneWidget);
+      expect(focusColor(12), vinylGold.withOpacity(.38));
+      expect(queue.playedId, isNull,
+          reason: 'Locating the current track must not restart playback');
+      expect(tester.takeException(), isNull);
+      Navigator.of(tester.element(list)).pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(ListView), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   for (final (size, scale) in [
     (const Size(320, 640), 1.0),
     (const Size(390, 844), 1.6),
@@ -903,7 +981,7 @@ void main() {
         ])
           key: tester.getRect(find.byKey(ValueKey(key))),
       };
-      await tester.drag(find.text('LISTEN 2'), const Offset(0, -100));
+      await tester.drag(find.text('Tacto'), const Offset(0, -100));
       await tester.pumpAndSettle();
 
       for (final track in <Track?>[...tracks, null]) {
@@ -1269,7 +1347,7 @@ void main() {
     expect(playback.moves, [true]);
     await dragArm(landed, parked);
     expect(playback.moves, [true, false]);
-    await tester.drag(find.text('LISTEN 2'), const Offset(-120, 0));
+    await tester.drag(find.text('Tacto'), const Offset(-120, 0));
     await tester.pumpAndSettle();
     expect(find.byType(Search), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -1304,7 +1382,7 @@ void main() {
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(find.byTooltip('设置'), findsNothing);
-    final heading = find.text('LISTEN 2');
+    final heading = find.text('Tacto');
     await tester.drag(heading, const Offset(40, 0));
     await tester.pumpAndSettle();
     expect(find.text('背景外观'), findsNothing);

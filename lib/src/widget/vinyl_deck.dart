@@ -16,8 +16,6 @@ const _vinylSkipThreshold = 56.0;
 String vinylTime(Duration time) =>
     '${time.inMinutes}:${(time.inSeconds % 60).toString().padLeft(2, '0')}';
 
-enum VinylInteraction { scrub, skip }
-
 class VinylTrackPreview {
   const VinylTrackPreview({required this.title, required this.cover});
   final String title;
@@ -94,7 +92,6 @@ class VinylDeck extends StatefulWidget {
       this.onLabelSwipeDown,
       this.onScrubStart,
       this.onScrubCancel,
-      this.onInteraction,
       required this.onArmChanged,
       required this.onSeek,
       required this.onSkip,
@@ -104,7 +101,6 @@ class VinylDeck extends StatefulWidget {
   final VoidCallback? onLabelSwipeDown;
   final VoidCallback? onScrubStart;
   final VoidCallback? onScrubCancel;
-  final ValueChanged<VinylInteraction>? onInteraction;
   final bool playing;
   final bool enabled;
   final bool busy;
@@ -151,7 +147,6 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
   Offset? _start;
   Offset? _end;
   bool _swiping = false;
-  bool _notifiedSkip = false;
   Duration? _target;
   Duration? _pendingSeek;
   Duration _scrubOrigin = Duration.zero;
@@ -300,12 +295,10 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
     _sweep = 0;
     _scrubOrigin = widget.position;
     _lastAngle = math.atan2(local.dy, local.dx);
-    _notifiedSkip = false;
     if (!_swiping && _available && widget.duration > Duration.zero) {
       setState(() => _target = _scrubOrigin);
       widget.onScrubStart?.call();
       widget.onScrubChanged?.call(_target);
-      widget.onInteraction?.call(VinylInteraction.scrub);
     }
   }
 
@@ -314,10 +307,6 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
     _end = position;
     if (_swiping) {
       final movement = _end! - _start!;
-      if (!_notifiedSkip && _skipDirection(movement) != null && _available) {
-        _notifiedSkip = true;
-        widget.onInteraction?.call(VinylInteraction.skip);
-      }
       final direction =
           _skipDirection(movement, threshold: _vinylSkipThreshold);
       if (direction != null &&
@@ -586,7 +575,7 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                                         cover: widget.cover)),
                               ))),
                     ),
-                    if (previewDirection != null)
+                    if (previewDirection != null && _canSkip(previewDirection))
                       Positioned(
                         left: previewDirection < 0 ? 12 : null,
                         right: previewDirection > 0 ? 12 : null,
@@ -691,7 +680,7 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                                                 widget.duration > Duration.zero)
                                               LayoutId(
                                                   id: _TimeBubbleSlot.duration,
-                                                  child: _GlassTimeBubble(
+                                                  child: _EngravedDuration(
                                                       key: const ValueKey(
                                                           'vinyl-total-time'),
                                                       time: widget.duration)),
@@ -707,25 +696,6 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                                           ]))),
                                   ],
                                 ))),
-                    if (_armHeld)
-                      Positioned(
-                        left: 16,
-                        right: 16,
-                        top: 14,
-                        child: IgnorePointer(
-                          child: Align(
-                            alignment: Alignment.topLeft,
-                            child: _DeckHint(
-                              key: const ValueKey('tonearm-grab-hint'),
-                              text: _armSnap == true
-                                  ? '松手落针播放'
-                                  : _armSnap == false
-                                      ? '松手归位暂停'
-                                      : '已拿起唱针 · 移到唱片或支架',
-                            ),
-                          ),
-                        ),
-                      ),
                     for (final direction in [-1, 1])
                       Positioned(
                         left: record.left + (direction > 0 ? diameter / 2 : 0),
@@ -793,24 +763,6 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                   ])),
             ));
       });
-}
-
-class _DeckHint extends StatelessWidget {
-  const _DeckHint({super.key, required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: const Color(0xEB262923),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: vinylGold.withOpacity(.4)),
-        ),
-        child: Text(text,
-            style:
-                const TextStyle(color: vinylCream, fontSize: 11, height: 1.4)),
-      );
 }
 
 class _SkipPreview extends StatelessWidget {
@@ -890,15 +842,90 @@ class _SkipPreview extends StatelessWidget {
                         fontWeight: FontWeight.w600)),
                 const SizedBox(height: 5),
               ],
-              Text(hint,
-                  style: const TextStyle(
-                      color: vinylOlive, fontSize: 10, height: 1.4)),
             ]),
           ),
         ),
       ),
     );
   }
+}
+
+class _EngravedDuration extends StatelessWidget {
+  const _EngravedDuration({super.key, required this.time});
+  final Duration time;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        label: '总时长 ${vinylTime(time)}',
+        child: ExcludeSemantics(
+          child: SizedBox(
+            width: 70,
+            height: 32,
+            child: CustomPaint(
+              painter: _TimeEngravingPainter(),
+              child: Center(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      vinylTime(time),
+                      style: const TextStyle(
+                        color: Color(0xFF33271D),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                        shadows: [
+                          Shadow(
+                              color: Color(0x99DDC6A2),
+                              offset: Offset(0, .8),
+                              blurRadius: .3),
+                          Shadow(
+                              color: Color(0x99281D14),
+                              offset: Offset(0, -.5),
+                              blurRadius: .4),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+class _TimeEngravingPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.width / 2;
+    final pattern = Path();
+    for (final y in [3.0, size.height - 3]) {
+      pattern
+        ..moveTo(9, y)
+        ..lineTo(center - 6, y)
+        ..moveTo(center + 6, y)
+        ..lineTo(size.width - 9, y)
+        ..moveTo(center, y - 2)
+        ..lineTo(center + 2, y)
+        ..lineTo(center, y + 2)
+        ..lineTo(center - 2, y)
+        ..close();
+    }
+    final stroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = .8
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(pattern.shift(const Offset(0, .8)),
+        stroke..color = const Color(0x88DDC6A2));
+    canvas.drawPath(pattern, stroke..color = const Color(0xAA382A1F));
+  }
+
+  @override
+  bool shouldRepaint(_TimeEngravingPainter oldDelegate) => false;
 }
 
 class _GlassTimeBubble extends StatelessWidget {
@@ -995,7 +1022,7 @@ class _TimeBubbleLayout extends MultiChildLayoutDelegate {
       final radial = geometry.tip(1, 0) - record.center;
       final edge = record.center + radial / radial.distance * radius;
       final left = fitX(edge.dx - bubble.width / 2, bubble);
-      // Keep the entire bubble outside the circular edge, even on small decks.
+      // Keep the engraving on the exposed wood, outside the circular record.
       final nearestX = record.center.dx.clamp(left, left + bubble.width);
       final dx = nearestX - record.center.dx;
       final boundaryY =

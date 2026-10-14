@@ -28,14 +28,6 @@ import 'package:listen2/main.dart' show ListenApp;
 import 'package:listen2/src/provider/global/main.dart';
 import 'package:listen2/src/provider/global/background_settings.dart';
 import 'package:listen2/src/provider/global/playback_settings.dart';
-import 'package:listen2/src/provider/global/player_hints.dart';
-
-class _Hints extends PlayerHintsNotifier {
-  @override
-  Set<String> build() => {};
-  @override
-  Future<void> markSeen(String hint) async => state = {...state, hint};
-}
 
 class _PlaybackSettings extends PlaybackSettingsNotifier {
   @override
@@ -435,7 +427,6 @@ void main() {
     final settings = _BackgroundSettings();
     final container = ProviderContainer(overrides: [
       backgroundSettingsProvider.overrideWith(() => settings),
-      playerHintsProvider.overrideWith(_Hints.new),
       autoplayOnStartupProvider.overrideWith(_PlaybackSettings.new),
       globalReadyProvider.overrideWith((ref) async {}),
       player.playerStateNotifierProvider.overrideWith(_SingleTrackPlayer.new),
@@ -493,7 +484,6 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(ProviderScope(overrides: [
       backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
-      playerHintsProvider.overrideWith(_Hints.new),
       autoplayOnStartupProvider.overrideWith(_PlaybackSettings.new),
       globalReadyProvider.overrideWith((ref) async {}),
       player.playerStateNotifierProvider.overrideWith(_SingleTrackPlayer.new),
@@ -536,7 +526,6 @@ void main() {
     await tester.pumpWidget(ProviderScope(
         overrides: [
           backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
-          playerHintsProvider.overrideWith(_Hints.new),
           player.playerStateNotifierProvider
               .overrideWith(_SingleTrackPlayer.new),
           currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),
@@ -757,7 +746,6 @@ void main() {
       await tester.pumpWidget(ProviderScope(
           overrides: [
             backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
-            playerHintsProvider.overrideWith(_Hints.new),
             player.playerStateNotifierProvider.overrideWith(() => playback),
             currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),
             playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
@@ -817,7 +805,6 @@ void main() {
     final queue = _ShelfQueue(tracks.map((track) => track.bvid).toList());
     await tester.pumpWidget(ProviderScope(overrides: [
       backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
-      playerHintsProvider.overrideWith(_Hints.new),
       globalReadyProvider.overrideWith((ref) async {}),
       player.playerStateNotifierProvider.overrideWith(() => playback),
       currentPlaylistNotifierProvider.overrideWith(() => queue),
@@ -888,7 +875,6 @@ void main() {
       await tester.pumpWidget(ProviderScope(
           overrides: [
             backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
-            playerHintsProvider.overrideWith(_Hints.new),
             player.playerStateNotifierProvider.overrideWith(() => playback),
             currentPlaylistNotifierProvider.overrideWith(() => _ShelfQueue([])),
             playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
@@ -957,7 +943,6 @@ void main() {
     final sources = _ImportSources();
     await tester.pumpWidget(ProviderScope(overrides: [
       backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
-      playerHintsProvider.overrideWith(_Hints.new),
       globalReadyProvider.overrideWith((ref) async {}),
       bilibiliPlaylistsProvider.overrideWith(() => sources),
       player.playerStateNotifierProvider.overrideWith(_Player.new),
@@ -1036,7 +1021,6 @@ void main() {
     final queue = _SearchQueue();
     final container = ProviderContainer(overrides: [
       backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
-      playerHintsProvider.overrideWith(_Hints.new),
       searchResultProvider.overrideWith(() => _SearchResults(tracks)),
       currentPlaylistNotifierProvider.overrideWith(() => queue),
       playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
@@ -1077,7 +1061,6 @@ void main() {
     await tester.pumpWidget(ProviderScope(overrides: [
       autoplayOnStartupProvider.overrideWith(_PlaybackSettings.new),
       backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
-      playerHintsProvider.overrideWith(_Hints.new),
       playlistNamesProvider.overrideWith(_Names.new),
       bilibiliPlaylistsProvider.overrideWith(_Sources.new),
       playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
@@ -1129,11 +1112,9 @@ void main() {
       'sleeve bookmark opens collections and playback failures can be retried',
       (tester) async {
     final playback = _TonearmPlayer()..failResume = true;
-    final hints = _Hints();
     await tester.pumpWidget(ProviderScope(
         overrides: [
           backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
-          playerHintsProvider.overrideWith(() => hints),
           player.playerStateNotifierProvider.overrideWith(() => playback),
           currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),
           playlistNamesProvider.overrideWith(_Names.new),
@@ -1169,18 +1150,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(playback.resumeAttempts, 2);
     expect(find.text('这张唱片暂时无法播放'), findsNothing);
-    expect(hints.state, contains('arm'));
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('progress guidance disappears after a successful seek',
+  testWidgets('progress adjustments do not show automatic teaching prompts',
       (tester) async {
-    final hints = _Hints();
     final playback = _SeekingPlayer(ap.PlayerState.paused)..pending.complete();
     await tester.pumpWidget(ProviderScope(
         overrides: [
           backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
-          playerHintsProvider.overrideWith(() => hints),
           player.playerStateNotifierProvider.overrideWith(() => playback),
           currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),
           trackCoverProvider(_singleTrack)
@@ -1194,8 +1172,7 @@ void main() {
     for (var attempt = 0; attempt < 2; attempt++) {
       final drag = await tester.startGesture(rect.center + Offset(0, -radius));
       await tester.pump();
-      expect(find.text('顺时针快进，逆时针快退；松手定位。'),
-          attempt == 0 ? findsOneWidget : findsNothing);
+      expect(find.text('顺时针快进，逆时针快退；松手定位。'), findsNothing);
       for (var index = 1; index <= 12; index++) {
         final angle = -math.pi / 2 + math.pi / 2 * index / 12;
         await drag.moveTo(
@@ -1204,7 +1181,6 @@ void main() {
       }
       await drag.up();
       await tester.pumpAndSettle();
-      expect(hints.state, contains('grooves'));
     }
     expect(playback.state.state, ap.PlayerState.paused);
     expect(tester.takeException(), isNull);
@@ -1220,7 +1196,6 @@ void main() {
     await tester.pumpWidget(ProviderScope(
         overrides: [
           backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
-          playerHintsProvider.overrideWith(_Hints.new),
           player.playerStateNotifierProvider
               .overrideWith(_SingleTrackPlayer.new),
           currentPlaylistNotifierProvider.overrideWith(
@@ -1256,7 +1231,6 @@ void main() {
     await tester.pumpWidget(ProviderScope(
         overrides: [
           backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
-          playerHintsProvider.overrideWith(_Hints.new),
           player.playerStateNotifierProvider.overrideWith(() => playback),
           currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),
           trackCoverProvider(_singleTrack)
@@ -1305,7 +1279,6 @@ void main() {
       (tester) async {
     await tester.pumpWidget(ProviderScope(overrides: [
       backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
-      playerHintsProvider.overrideWith(_Hints.new),
       autoplayOnStartupProvider.overrideWith(_PlaybackSettings.new),
       globalReadyProvider.overrideWith((ref) async {}),
       bilibiliPlaylistsProvider.overrideWith(_Sources.new),
@@ -1459,7 +1432,6 @@ void main() {
     await tester.pumpWidget(ProviderScope(
         overrides: [
           backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
-          playerHintsProvider.overrideWith(_Hints.new),
           player.playerStateNotifierProvider
               .overrideWith(_SingleTrackPlayer.new),
           currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),

@@ -6,7 +6,6 @@ import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/global/player.dart';
 import 'package:listen2/src/provider/global/current_playlist.dart';
-import 'package:listen2/src/provider/global/player_hints.dart';
 import 'package:listen2/src/provider/repo/track.dart';
 import 'package:listen2/src/view/page/search/search.page.dart';
 import 'package:listen2/src/widget/track_cover.widget.dart';
@@ -31,10 +30,8 @@ class _PlayerState extends ConsumerState<Player> {
   Future<void> Function()? _retry;
   bool _scrubActive = false;
   bool _scrubWasPlaying = false;
-  Duration _scrubOrigin = Duration.zero;
   Future<void>? _scrubBegin;
   PlayerStateNotifier? _scrubPlayer;
-  String? _contextHint;
   Duration? _scrubbing;
   String? _feedback;
   int? _unavailableDirection;
@@ -136,15 +133,6 @@ class _PlayerState extends ConsumerState<Player> {
     }
   }
 
-  void _markHint(String key) {
-    if (!mounted) return;
-    unawaited(ref
-        .read(playerHintsProvider.notifier)
-        .markSeen(key)
-        .catchError((_) {}));
-    if (_contextHint == key) setState(() => _contextHint = null);
-  }
-
   void _beginScrub() {
     if (_scrubActive || _busy) return;
     final playback = ref.read(playerStateNotifierProvider);
@@ -152,7 +140,6 @@ class _PlayerState extends ConsumerState<Player> {
     setState(() {
       _scrubActive = true;
       _scrubWasPlaying = playback.state == ap.PlayerState.playing;
-      _scrubOrigin = playback.now;
     });
     _scrubBegin = _scrubPlayer!.beginScrub();
     unawaited(_scrubBegin!.catchError((_) {}));
@@ -167,7 +154,6 @@ class _PlayerState extends ConsumerState<Player> {
         } else {
           await ref.read(playerStateNotifierProvider.notifier).seek(value);
         }
-        if (value != _scrubOrigin) _markHint('grooves');
       }, message: '正在定位 · ${vinylTime(value)}', error: '定位失败，请重试');
     } finally {
       _clearScrub();
@@ -221,7 +207,6 @@ class _PlayerState extends ConsumerState<Player> {
       } else {
         await player.resume();
       }
-      _markHint('arm');
     },
         message: lowered ? '正在落针播放' : '正在抬针暂停',
         error: lowered ? '这张唱片暂时无法播放' : '暂时无法暂停，请重试');
@@ -239,7 +224,6 @@ class _PlayerState extends ConsumerState<Player> {
     }
     await _run(() async {
       await ref.read(currentPlaylistNotifierProvider.notifier).skip(direction);
-      _markHint('skip');
     });
   }
 
@@ -254,15 +238,12 @@ class _PlayerState extends ConsumerState<Player> {
           child: const PlaylistPicker()),
     );
     if (!mounted || name == null) return;
-    _markHint('intro');
     await Navigator.of(context).push(MaterialPageRoute(
         builder: (_) =>
             PlaylistPage(playlistName: name, returnToPlayerOnPlay: true)));
   }
 
   void _showQueue() {
-    final showHint = !ref.read(playerHintsProvider).contains('queue');
-    _markHint('queue');
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: vinylCream,
@@ -298,12 +279,6 @@ class _PlayerState extends ConsumerState<Player> {
                           label: const Text('选歌单'),
                         ),
                       ])),
-                  if (showHint)
-                    const Padding(
-                        padding: EdgeInsets.fromLTRB(24, 0, 24, 12),
-                        child: Text('点选歌曲即可播放；用「选歌单」切换整份播放列表。',
-                            style: TextStyle(
-                                color: vinylOlive, fontSize: 12, height: 1.5))),
                   Expanded(
                       child: ids.isEmpty
                           ? const Center(
@@ -382,21 +357,6 @@ class _PlayerState extends ConsumerState<Player> {
     final singer = track?.singer.trim() ?? '';
     final playing = state.state == ap.PlayerState.playing;
     final deckPlaying = _scrubActive ? _scrubWasPlaying : playing;
-    final seenHints = ref.watch(playerHintsProvider);
-    final hintKey = _contextHint != null && !seenHints.contains(_contextHint)
-        ? _contextHint
-        : track == null && !seenHints.contains('intro')
-            ? 'intro'
-            : track != null && !playing && !seenHints.contains('arm')
-                ? 'arm'
-                : null;
-    final hint = switch (hintKey) {
-      'intro' => '先选一首音乐，再把唱针放上唱片。',
-      'arm' => '按住唱头片刻再拖动，或轻点唱臂播放。',
-      'grooves' => '顺时针快进，逆时针快退；松手定位。',
-      'skip' => '看到「松手换」后松手；拖回即可取消。',
-      _ => null,
-    };
     final queue = track == null
         ? <String>[]
         : ref.watch(currentPlaylistNotifierProvider).playlist;
@@ -539,14 +499,6 @@ class _PlayerState extends ConsumerState<Player> {
                       onSeek: _seek,
                       onScrubStart: _beginScrub,
                       onScrubCancel: () => unawaited(_cancelScrub()),
-                      onInteraction: (interaction) {
-                        final key = interaction == VinylInteraction.scrub
-                            ? 'grooves'
-                            : 'skip';
-                        if (!seenHints.contains(key)) {
-                          setState(() => _contextHint = key);
-                        }
-                      },
                       onScrubChanged: (value) {
                         if (mounted) setState(() => _scrubbing = value);
                       },
@@ -567,11 +519,8 @@ class _PlayerState extends ConsumerState<Player> {
                     onChoosePlaylist: _showPlaylists,
                     onSaveTrack: track == null ? null : _showSavePlaylists,
                   ),
-                  hint: hint ??
-                      (track == null
-                          ? '选择音乐，开始聆听'
-                          : '${vinylTime(_scrubbing ?? state.now)} / ${vinylTime(state.length)}'),
-                  onHideHint: hint == null ? null : () => _markHint(hintKey!),
+                  progress:
+                      '${vinylTime(_scrubbing ?? state.now)} / ${vinylTime(state.length)}',
                   title: track?.title ?? '让音乐，慢慢转起来',
                   singer: singer,
                   feedback: _feedback,
@@ -647,18 +596,16 @@ class _FitPlayerText extends StatelessWidget {
 class _PlayerControls extends StatelessWidget {
   const _PlayerControls({
     required this.shelf,
-    required this.hint,
+    required this.progress,
     required this.title,
     required this.singer,
-    this.onHideHint,
     this.feedback,
     this.retry,
   });
   final Widget shelf;
-  final String hint;
+  final String progress;
   final String title;
   final String singer;
-  final VoidCallback? onHideHint;
   final String? feedback;
   final VoidCallback? retry;
 
@@ -670,7 +617,7 @@ class _PlayerControls extends StatelessWidget {
             height: 44,
             child: Row(children: [
               Expanded(
-                  child: _FitPlayerText(feedback ?? hint,
+                  child: _FitPlayerText(feedback ?? progress,
                       fontSize: 11,
                       maxLines: 2,
                       alignment: Alignment.centerLeft,
@@ -682,12 +629,6 @@ class _PlayerControls extends StatelessWidget {
                     onPressed: retry,
                     icon: const Icon(Icons.refresh_rounded, size: 16),
                     label: const Text('重试'))
-              else if (feedback == null && onHideHint != null)
-                IconButton(
-                    tooltip: '隐藏提示',
-                    onPressed: onHideHint,
-                    icon: const Icon(Icons.close_rounded,
-                        color: vinylOlive, size: 16)),
             ])),
         const SizedBox(height: 4),
         Expanded(

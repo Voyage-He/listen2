@@ -83,6 +83,19 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  dynamic tonearmPainter(WidgetTester tester) => tester
+      .widget<CustomPaint>(find.descendant(
+          of: find.byKey(const ValueKey('tonearm')),
+          matching: find.byType(CustomPaint)))
+      .painter!;
+
+  double previewScale(WidgetTester tester) => tester
+      .widget<TweenAnimationBuilder<double>>(find.descendant(
+          of: find.byKey(const ValueKey('vinyl-skip-preview')),
+          matching: find.byType(TweenAnimationBuilder<double>)))
+      .tween
+      .end!;
+
   testWidgets('record follows audio time at one revolution per minute',
       (tester) async {
     Future<void> show(Duration position, bool playing) =>
@@ -203,7 +216,8 @@ void main() {
     await tester.pump(vinylArmGrabDelay - const Duration(milliseconds: 1));
     expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsNothing);
     await tester.pump(const Duration(milliseconds: 1));
-    expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsOneWidget);
+    expect(tonearmPainter(tester).lifted, isTrue);
+    expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsNothing);
     await hold.up();
     await tester.pumpAndSettle();
     expect(moves, isEmpty);
@@ -213,7 +227,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsNothing);
     await tester.pump(vinylArmGrabDelay - const Duration(milliseconds: 100));
-    expect(find.text('松手落针播放'), findsOneWidget);
+    expect(tonearmPainter(tester).lowered, 1);
+    expect(find.text('松手落针播放'), findsNothing);
     await drag.up();
     await tester.pumpAndSettle();
     expect(moves, [true]);
@@ -330,7 +345,8 @@ void main() {
     await tester.pump(vinylArmGrabDelay);
     await partial.moveTo(halfway);
     await tester.pump();
-    expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsOneWidget);
+    expect(tonearmPainter(tester).lifted, isTrue);
+    expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsNothing);
     expect(find.text('松手落针播放'), findsNothing);
     await partial.up();
     await tester.pumpAndSettle();
@@ -341,7 +357,8 @@ void main() {
     await tester.pump(vinylArmGrabDelay);
     await cancelled.moveTo(deck.topLeft + geometry.tip(1, .25));
     await tester.pump();
-    expect(find.text('松手落针播放'), findsOneWidget);
+    expect(tonearmPainter(tester).lowered, 1);
+    expect(find.text('松手落针播放'), findsNothing);
     await cancelled.cancel();
     await tester.pumpAndSettle();
     expect(moves, isEmpty);
@@ -356,7 +373,8 @@ void main() {
     await tester.pump(vinylArmGrabDelay);
     await returned.moveTo(origin);
     await tester.pump();
-    expect(find.text('松手归位暂停'), findsOneWidget);
+    expect(tonearmPainter(tester).lowered, 0);
+    expect(find.text('松手归位暂停'), findsNothing);
     await returned.up();
     await tester.pumpAndSettle();
     expect(moves, [false]);
@@ -374,7 +392,8 @@ void main() {
     await tester.pump(vinylArmGrabDelay);
     await drag.moveTo(deck.topLeft + geometry.tip(.9, .25));
     await tester.pump();
-    expect(find.text('松手落针播放'), findsOneWidget);
+    expect(tonearmPainter(tester).lowered, 1);
+    expect(find.text('松手落针播放'), findsNothing);
     final armTween = tester.widget<TweenAnimationBuilder<double>>(
         find.descendant(
             of: find.byType(VinylDeck),
@@ -382,7 +401,8 @@ void main() {
     expect(armTween.duration, Duration.zero);
     await drag.moveTo(deck.topLeft + geometry.tip(.8, .25));
     await tester.pump();
-    expect(find.text('松手落针播放'), findsOneWidget);
+    expect(tonearmPainter(tester).lowered, 1);
+    expect(find.text('松手落针播放'), findsNothing);
     await drag.up();
     await tester.pumpAndSettle();
     expect(moves, [true]);
@@ -420,7 +440,8 @@ void main() {
       expect(find.text('松手落针播放'), findsNothing);
       await drag.moveTo(rect.topLeft + geometry.tip(inside, progress));
       await tester.pump();
-      expect(find.text('松手落针播放'), findsOneWidget);
+      expect(tonearmPainter(tester).lowered, 1);
+      expect(find.text('松手落针播放'), findsNothing);
       expect(moves, isEmpty);
       await drag.up();
       await tester.pumpAndSettle();
@@ -431,7 +452,8 @@ void main() {
       await tester.pump(vinylArmGrabDelay);
       await withdrawn.moveTo(rect.topLeft + geometry.tip(inside, progress));
       await tester.pump();
-      expect(find.text('松手落针播放'), findsOneWidget);
+      expect(tonearmPainter(tester).lowered, 1);
+      expect(find.text('松手落针播放'), findsNothing);
       await withdrawn.moveTo(rect.topLeft + geometry.tip(outside, progress));
       await tester.pump();
       expect(find.text('松手落针播放'), findsNothing);
@@ -455,7 +477,8 @@ void main() {
     await tester.pump(vinylArmGrabDelay);
     await drag.moveTo(rect.topLeft + geometry.tip(1, .25));
     await tester.pump();
-    expect(find.text('松手落针播放'), findsOneWidget);
+    expect(tonearmPainter(tester).lowered, 1);
+    expect(find.text('松手落针播放'), findsNothing);
     await pumpDeck(tester, busy: true, arm: onArm);
     expect(find.byKey(const ValueKey('tonearm-grab-hint')), findsNothing);
     await drag.up();
@@ -489,11 +512,13 @@ void main() {
     await drag.moveTo(center + const Offset(-50, 0));
     await tester.pump();
     expect(find.text('下一张封面'), findsOneWidget);
-    expect(find.text('继续拨动换曲'), findsOneWidget);
+    expect(previewScale(tester), 1);
+    expect(find.text('继续拨动换曲'), findsNothing);
     expect(haptics, isEmpty);
     await drag.moveTo(center + const Offset(-60, 0));
     await tester.pump();
-    expect(find.text('松手换下一张'), findsOneWidget);
+    expect(previewScale(tester), 1.05);
+    expect(find.text('松手换下一张'), findsNothing);
     expect(haptics, ['HapticFeedbackType.selectionClick']);
     expect(skips, isEmpty);
     await drag.moveTo(center + const Offset(-40, 0));
@@ -503,7 +528,8 @@ void main() {
     await drag.moveTo(center + const Offset(65, 0));
     await tester.pump();
     expect(find.text('前一张封面'), findsOneWidget);
-    expect(find.text('松手换上一张'), findsOneWidget);
+    expect(previewScale(tester), 1.05);
+    expect(find.text('松手换上一张'), findsNothing);
     expect(haptics, hasLength(2));
     await drag.up();
     await tester.pumpAndSettle();
@@ -522,7 +548,8 @@ void main() {
       final drag = await tester.startGesture(center);
       await drag.moveTo(center + const Offset(-70, 0));
       await tester.pump();
-      expect(find.text('松手换下一张'), findsOneWidget);
+      expect(previewScale(tester), 1.05);
+      expect(find.text('松手换下一张'), findsNothing);
       if (cancel) {
         await drag.cancel();
       } else {
@@ -547,7 +574,7 @@ void main() {
       final drag = await tester.startGesture(center);
       await drag.moveBy(Offset(direction * 90.0, 0));
       await tester.pump();
-      expect(find.text(direction < 0 ? '最后一张了' : '第一张了'), findsOneWidget);
+      expect(find.byKey(const ValueKey('vinyl-skip-preview')), findsNothing);
       expect(find.textContaining('松手换'), findsNothing);
       await drag.up();
       await tester.pumpAndSettle();

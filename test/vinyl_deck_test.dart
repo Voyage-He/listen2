@@ -44,6 +44,8 @@ void main() {
       VoidCallback? longPress,
       VoidCallback? swipeUp,
       VoidCallback? swipeDown,
+      VoidCallback? scrubStart,
+      VoidCallback? scrubCancel,
       Duration position = const Duration(seconds: 45),
       Duration length = const Duration(minutes: 3),
       Future<void> Function(bool)? arm,
@@ -69,6 +71,8 @@ void main() {
               onLabelLongPress: longPress,
               onLabelSwipeUp: swipeUp,
               onLabelSwipeDown: swipeDown,
+              onScrubStart: scrubStart,
+              onScrubCancel: scrubCancel,
               position: position,
               duration: length,
               cover: const ColoredBox(color: vinylGold),
@@ -757,6 +761,47 @@ void main() {
     expect(seeks[1].inMilliseconds, closeTo(30000, 1500));
     expect(skips, isEmpty);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'holding grooves shows target and delta and restores on cancellation',
+      (tester) async {
+    var started = 0;
+    var cancelled = 0;
+    final seeks = <Duration>[];
+    await pumpDeck(tester,
+        playing: true,
+        reduceMotion: true,
+        scrubStart: () => started++,
+        scrubCancel: () => cancelled++,
+        seek: (value) async => seeks.add(value));
+    final rect = tester.getRect(find.byKey(const ValueKey('vinyl-record')));
+    final radius = rect.width * .43;
+    final drag = await tester.startGesture(rect.center + Offset(0, -radius));
+    await tester.pump();
+    expect(started, 1);
+    expect(
+        tester.widget<VinylRecord>(find.byType(VinylRecord)).playing, isFalse);
+    expect(find.text('目标 0:45'), findsOneWidget);
+    for (var index = 1; index <= 12; index++) {
+      final angle = -math.pi / 2 + math.pi / 2 * index / 12;
+      await drag.moveTo(
+          rect.center + Offset(math.cos(angle), math.sin(angle)) * radius);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(find.text('目标 1:00'), findsOneWidget);
+    expect(find.text('+15 秒'), findsOneWidget);
+    expect(seeks, isEmpty);
+    await drag.up();
+    await tester.pumpAndSettle();
+    expect(seeks, [const Duration(minutes: 1)]);
+    expect(cancelled, 0);
+    final abandoned =
+        await tester.startGesture(rect.center + Offset(0, -radius));
+    await abandoned.cancel();
+    await tester.pumpAndSettle();
+    expect(cancelled, 1);
+    expect(seeks, [const Duration(minutes: 1)]);
   });
 
   testWidgets('vertical record gestures do not scroll the surrounding page',

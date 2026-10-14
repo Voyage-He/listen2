@@ -83,10 +83,10 @@ void main() {
     await next(tester);
     await tester.drag(record, const Offset(0, -90));
     await tester.pumpAndSettle();
-    expect(find.text('练习唱片架'), findsOneWidget);
+    expect(find.text('练习播放列表'), findsOneWidget);
     await tester.tap(find.text('练习唱片 A'));
     await tester.pumpAndSettle();
-    expect(find.text('已打开练习唱片架'), findsOneWidget);
+    expect(find.text('已打开练习播放列表'), findsOneWidget);
 
     await next(tester);
     await tester.drag(record, const Offset(0, 90));

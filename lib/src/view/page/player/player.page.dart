@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:listen2/src/provider/global/player.dart';
 import 'package:listen2/src/provider/global/current_playlist.dart';
+import 'package:listen2/src/provider/global/player_hints.dart';
 import 'package:listen2/src/provider/repo/track.dart';
 import 'package:listen2/src/view/page/search/search.page.dart';
 import 'package:listen2/src/widget/track_cover.widget.dart';
@@ -13,6 +15,7 @@ import 'package:listen2/src/widget/vinyl_deck.dart';
 import 'package:listen2/src/widget/playlist_picker.dart';
 import 'package:listen2/src/widget/player_tutorial.dart';
 import 'package:listen2/src/widget/record_shelf.dart';
+import 'package:listen2/src/widget/player_room_navigation.dart';
 import 'package:listen2/src/view/page/playlist/playlist.dart';
 import 'package:listen2/src/view/page/option/option.page.dart';
 
@@ -25,6 +28,14 @@ class Player extends ConsumerStatefulWidget {
 
 class _PlayerState extends ConsumerState<Player> {
   bool _busy = false;
+  String _busyLabel = '正在取出唱片';
+  Future<void> Function()? _retry;
+  bool _scrubActive = false;
+  bool _scrubWasPlaying = false;
+  Duration _scrubOrigin = Duration.zero;
+  Future<void>? _scrubBegin;
+  PlayerStateNotifier? _scrubPlayer;
+  String? _contextHint;
   Duration? _scrubbing;
   String? _feedback;
   int? _unavailableDirection;
@@ -74,6 +85,16 @@ class _PlayerState extends ConsumerState<Player> {
   @override
   void dispose() {
     _edgeFeedbackTimer?.cancel();
+    final player = _scrubPlayer;
+    final begin = _scrubBegin;
+    if (_scrubActive && player != null) {
+      unawaited(() async {
+        try {
+          await begin;
+          await player.finishScrub();
+        } catch (_) {}
+      }());
+    }
     super.dispose();
   }
 
@@ -88,24 +109,104 @@ class _PlayerState extends ConsumerState<Player> {
     });
   }
 
-  Future<void> _run(Future<void> Function() action) async {
+  Future<void> _run(
+    Future<void> Function() action, {
+    String message = '正在取出唱片',
+    String error = '这张唱片暂时无法播放',
+  }) async {
     if (_busy) return;
     _edgeFeedbackTimer?.cancel();
     setState(() {
       _unavailableDirection = null;
       _busy = true;
+      _busyLabel = message;
       _feedback = null;
+      _retry = null;
     });
     try {
       await action();
     } catch (_) {
-      if (mounted) setState(() => _feedback = '暂时无法播放，请检查网络后重试');
+      if (mounted) {
+        setState(() {
+          _feedback = error;
+          _retry = () => _run(action, message: message, error: error);
+        });
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
+  void _markHint(String key) {
+    if (!mounted) return;
+    unawaited(ref
+        .read(playerHintsProvider.notifier)
+        .markSeen(key)
+        .catchError((_) {}));
+    if (_contextHint == key) setState(() => _contextHint = null);
+  }
+
+  void _beginScrub() {
+    if (_scrubActive || _busy) return;
+    final playback = ref.read(playerStateNotifierProvider);
+    _scrubPlayer = ref.read(playerStateNotifierProvider.notifier);
+    setState(() {
+      _scrubActive = true;
+      _scrubWasPlaying = playback.state == ap.PlayerState.playing;
+      _scrubOrigin = playback.now;
+    });
+    _scrubBegin = _scrubPlayer!.beginScrub();
+    unawaited(_scrubBegin!.catchError((_) {}));
+  }
+
+  Future<void> _seek(Duration value) async {
+    try {
+      await _run(() async {
+        if (_scrubActive) {
+          await _scrubBegin;
+          await _scrubPlayer!.finishScrub(value);
+        } else {
+          await ref.read(playerStateNotifierProvider.notifier).seek(value);
+        }
+        if (value != _scrubOrigin) _markHint('grooves');
+      }, message: '正在定位 · ${vinylTime(value)}', error: '定位失败，请重试');
+    } finally {
+      _clearScrub();
+    }
+  }
+
+  void _clearScrub() {
+    if (!mounted) return;
+    setState(() {
+      _scrubActive = false;
+      _scrubBegin = null;
+      _scrubPlayer = null;
+      _scrubbing = null;
+    });
+  }
+
+  Future<void> _cancelScrub() async {
+    if (!_scrubActive) return;
+    try {
+      await _run(() async {
+        if (_scrubActive) {
+          await _scrubBegin;
+          await _scrubPlayer!.finishScrub();
+        } else if (_scrubWasPlaying) {
+          await ref.read(playerStateNotifierProvider.notifier).resume();
+        }
+      }, message: '正在放开唱片', error: '暂时无法恢复播放，请重试');
+    } finally {
+      _clearScrub();
+    }
+  }
+
   Future<void> _moveArm(bool lowered) async {
+    if (_scrubActive) {
+      await _scrubPlayer!.cancelScrub();
+      _clearScrub();
+      if (!mounted) return;
+    }
     final state = ref.read(playerStateNotifierProvider);
     if (state.track == null) {
       setState(() => _feedback = '尚未选择歌曲');
@@ -121,7 +222,10 @@ class _PlayerState extends ConsumerState<Player> {
       } else {
         await player.resume();
       }
-    });
+      _markHint('arm');
+    },
+        message: lowered ? '正在落针播放' : '正在抬针暂停',
+        error: lowered ? '这张唱片暂时无法播放' : '暂时无法暂停，请重试');
   }
 
   Future<void> _skip(int direction) async {
@@ -136,6 +240,7 @@ class _PlayerState extends ConsumerState<Player> {
     }
     await _run(() async {
       await ref.read(currentPlaylistNotifierProvider.notifier).skip(direction);
+      _markHint('skip');
     });
   }
 
@@ -150,12 +255,15 @@ class _PlayerState extends ConsumerState<Player> {
           child: const PlaylistPicker()),
     );
     if (!mounted || name == null) return;
+    _markHint('intro');
     await Navigator.of(context).push(MaterialPageRoute(
         builder: (_) =>
             PlaylistPage(playlistName: name, returnToPlayerOnPlay: true)));
   }
 
   void _showQueue() {
+    final showHint = !ref.read(playerHintsProvider).contains('queue');
+    _markHint('queue');
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: vinylCream,
@@ -176,7 +284,7 @@ class _PlayerState extends ConsumerState<Player> {
                       padding: const EdgeInsets.fromLTRB(24, 0, 16, 12),
                       child: Row(children: [
                         const Expanded(
-                            child: Text('唱片架',
+                            child: Text('播放列表',
                                 style: TextStyle(
                                     color: vinylInk,
                                     fontSize: 22,
@@ -191,6 +299,12 @@ class _PlayerState extends ConsumerState<Player> {
                           label: const Text('选歌单'),
                         ),
                       ])),
+                  if (showHint)
+                    const Padding(
+                        padding: EdgeInsets.fromLTRB(24, 0, 24, 12),
+                        child: Text('点选歌曲即可播放；用「选歌单」切换整份播放列表。',
+                            style: TextStyle(
+                                color: vinylOlive, fontSize: 12, height: 1.5))),
                   Expanded(
                       child: ids.isEmpty
                           ? const Center(
@@ -268,7 +382,48 @@ class _PlayerState extends ConsumerState<Player> {
     final track = state.track;
     final singer = track?.singer.trim() ?? '';
     final playing = state.state == ap.PlayerState.playing;
+    final deckPlaying = _scrubActive ? _scrubWasPlaying : playing;
+    final seenHints = ref.watch(playerHintsProvider);
+    final hintKey = _contextHint != null && !seenHints.contains(_contextHint)
+        ? _contextHint
+        : track == null && !seenHints.contains('intro')
+            ? 'intro'
+            : track != null && !playing && !seenHints.contains('arm')
+                ? 'arm'
+                : null;
+    final hint = switch (hintKey) {
+      'intro' => '先选一首音乐，再把唱针放上唱片。',
+      'arm' => '按住唱头片刻再拖动，或轻点唱臂播放。',
+      'grooves' => '顺时针快进，逆时针快退；松手定位。',
+      'skip' => '看到「松手换」后松手；拖回即可取消。',
+      _ => null,
+    };
     final textScaler = MediaQuery.textScalerOf(context);
+    final reservedHeight = 44 +
+        textScaler.scale(11) * 1.4 +
+        16 +
+        (widget.isHome
+            ? math.max(45, textScaler.scale(12) * 1.4 + 26) + 12
+            : 0) +
+        math.max(
+            82, textScaler.scale(14) * 1.4 + textScaler.scale(10) * 2.8 + 29) +
+        textScaler.scale(12) * 3.7 +
+        8 +
+        textScaler.scale(24) * 2.7 +
+        10 +
+        textScaler.scale(15) * 1.4 +
+        14 +
+        12;
+    // Reserve room for the controls and track info while retaining a usable touch size.
+    final deckWidth = math.min(
+        460.0,
+        math.max(
+            260.0,
+            (MediaQuery.sizeOf(context).height -
+                    MediaQuery.paddingOf(context).vertical -
+                    68 -
+                    reservedHeight) *
+                VinylDeckGeometry.aspectRatio));
     final queue = track == null
         ? <String>[]
         : ref.watch(currentPlaylistNotifierProvider).playlist;
@@ -355,12 +510,14 @@ class _PlayerState extends ConsumerState<Player> {
                             Expanded(
                                 child: Text(
                                     _busy
-                                        ? '正在取出唱片'
-                                        : _scrubbing != null
-                                            ? '正在转动唱片'
-                                            : playing
-                                                ? '唱针已落下 · 正在播放'
-                                                : '唱针已抬起 · 等待聆听',
+                                        ? _busyLabel
+                                        : state.loading
+                                            ? '等待音乐加载'
+                                            : _scrubbing != null
+                                                ? '正在转动唱片'
+                                                : playing
+                                                    ? '唱针已落下 · 正在播放'
+                                                    : '唱针已抬起 · 等待聆听',
                                     style: const TextStyle(
                                         color: vinylOlive,
                                         fontSize: 11,
@@ -372,33 +529,54 @@ class _PlayerState extends ConsumerState<Player> {
                                     letterSpacing: 2)),
                           ]),
                           const SizedBox(height: 16),
-                          VinylDeck(
-                              playing: playing,
-                              position: state.now,
-                              duration: state.length,
-                              enabled: track != null,
-                              busy: _busy,
-                              unavailableDirection: _unavailableDirection,
-                              previousTrack: previous,
-                              nextTrack: next,
-                              canSkipPrevious: index > 0,
-                              canSkipNext:
-                                  index >= 0 && index + 1 < queue.length,
-                              cover: const CurrentTrackCover(
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  fit: BoxFit.cover),
-                              onArmChanged: _moveArm,
-                              onSkip: _skip,
-                              onLabelLongPress: _showPlaylists,
-                              onLabelSwipeUp: _showQueue,
-                              onLabelSwipeDown: _showSavePlaylists,
-                              onSeek: (value) => _run(() => ref
-                                  .read(playerStateNotifierProvider.notifier)
-                                  .seek(value)),
-                              onScrubChanged: (value) {
-                                if (mounted) setState(() => _scrubbing = value);
-                              }),
+                          if (widget.isHome) ...[
+                            PlayerRoomNavigation(
+                              onSearch: () => _openSidePage(-1),
+                              onSettings: () => _openSidePage(1),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          SizedBox(
+                              width: deckWidth,
+                              child: VinylDeck(
+                                  playing: deckPlaying,
+                                  position: state.now,
+                                  duration: state.length,
+                                  enabled: track != null,
+                                  busy: _busy || state.loading,
+                                  unavailableDirection: _unavailableDirection,
+                                  previousTrack: previous,
+                                  nextTrack: next,
+                                  canSkipPrevious: index > 0,
+                                  canSkipNext:
+                                      index >= 0 && index + 1 < queue.length,
+                                  cover: const CurrentTrackCover(
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                      fit: BoxFit.cover),
+                                  onArmChanged: _moveArm,
+                                  onSkip: _skip,
+                                  onLabelLongPress: _showPlaylists,
+                                  onLabelSwipeUp: _showQueue,
+                                  onLabelSwipeDown: _showSavePlaylists,
+                                  onSeek: _seek,
+                                  onScrubStart: _beginScrub,
+                                  onScrubCancel: () =>
+                                      unawaited(_cancelScrub()),
+                                  onInteraction: (interaction) {
+                                    final key =
+                                        interaction == VinylInteraction.scrub
+                                            ? 'grooves'
+                                            : 'skip';
+                                    if (!seenHints.contains(key)) {
+                                      setState(() => _contextHint = key);
+                                    }
+                                  },
+                                  onScrubChanged: (value) {
+                                    if (mounted) {
+                                      setState(() => _scrubbing = value);
+                                    }
+                                  })),
                           const SizedBox(height: 12),
                           RecordShelf(
                             count: queue.length,
@@ -411,8 +589,32 @@ class _PlayerState extends ConsumerState<Player> {
                             ],
                             onOpenQueue: _showQueue,
                             onChoosePlaylist: _showPlaylists,
+                            onSaveTrack:
+                                track == null ? null : _showSavePlaylists,
                           ),
-                          const SizedBox(height: 20),
+                          SizedBox(
+                              height: textScaler.scale(12) * 3.7,
+                              child: Row(children: [
+                                Expanded(
+                                    child: Text(
+                                        hint ??
+                                            (track == null
+                                                ? '选择音乐，开始聆听'
+                                                : '${vinylTime(_scrubbing ?? state.now)} / ${vinylTime(state.length)}'),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            color: vinylOlive,
+                                            fontSize: 12,
+                                            height: 1.5))),
+                                if (hint != null)
+                                  IconButton(
+                                      tooltip: '隐藏提示',
+                                      onPressed: () => _markHint(hintKey!),
+                                      icon: const Icon(Icons.close_rounded,
+                                          color: vinylOlive, size: 16)),
+                              ])),
+                          const SizedBox(height: 8),
                           SizedBox(
                               key: const ValueKey('player-track-title'),
                               width: double.infinity,
@@ -473,6 +675,12 @@ class _PlayerState extends ConsumerState<Player> {
                                     color: Color(0xFF9B593D),
                                     fontSize: 11,
                                     height: 1.6)),
+                            if (_retry != null)
+                              TextButton.icon(
+                                  onPressed: _busy ? null : _retry,
+                                  icon: const Icon(Icons.refresh_rounded,
+                                      size: 18),
+                                  label: const Text('重试')),
                           ],
                         ]))),
               )),

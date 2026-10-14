@@ -169,7 +169,7 @@ class _AddPlaylistState extends ConsumerState<_AddPlaylist> {
                                     Text(
                                         _local
                                             ? '属于你的空白唱片'
-                                            : '把 Bilibili 收藏带进唱片架',
+                                            : '把 Bilibili 收藏带进播放列表',
                                         style: TextStyle(
                                             color: _color,
                                             fontSize: 14,

@@ -28,6 +28,14 @@ import 'package:listen2/main.dart' show ListenApp;
 import 'package:listen2/src/provider/global/main.dart';
 import 'package:listen2/src/provider/global/background_settings.dart';
 import 'package:listen2/src/provider/global/playback_settings.dart';
+import 'package:listen2/src/provider/global/player_hints.dart';
+
+class _Hints extends PlayerHintsNotifier {
+  @override
+  Set<String> build() => {};
+  @override
+  Future<void> markSeen(String hint) async => state = {...state, hint};
+}
 
 class _PlaybackSettings extends PlaybackSettingsNotifier {
   @override
@@ -183,6 +191,8 @@ class _SingleTrackPlayer extends player.PlayerStateNotifier {
 
 class _TonearmPlayer extends player.PlayerStateNotifier {
   final moves = <bool>[];
+  bool failResume = false;
+  int resumeAttempts = 0;
 
   @override
   player.PlayerState build() => player.PlayerState(
@@ -194,6 +204,8 @@ class _TonearmPlayer extends player.PlayerStateNotifier {
 
   @override
   Future<void> resume() async {
+    resumeAttempts++;
+    if (failResume) throw StateError('playback unavailable');
     moves.add(true);
     state = state.copyWith(state: ap.PlayerState.playing);
   }
@@ -210,6 +222,20 @@ class _SeekingPlayer extends player.PlayerStateNotifier {
   final ap.PlayerState playbackState;
   final pending = Completer<void>();
   Duration? target;
+  bool _wasPlaying = false;
+
+  @override
+  Future<void> beginScrub() async {
+    _wasPlaying = state.state == ap.PlayerState.playing;
+    state = state.copyWith(state: ap.PlayerState.paused);
+  }
+
+  @override
+  Future<void> finishScrub([Duration? target]) async {
+    if (target != null) await seek(target);
+    state = state.copyWith(
+        state: _wasPlaying ? ap.PlayerState.playing : ap.PlayerState.paused);
+  }
 
   @override
   player.PlayerState build() => player.PlayerState(
@@ -409,6 +435,7 @@ void main() {
     final settings = _BackgroundSettings();
     final container = ProviderContainer(overrides: [
       backgroundSettingsProvider.overrideWith(() => settings),
+      playerHintsProvider.overrideWith(_Hints.new),
       autoplayOnStartupProvider.overrideWith(_PlaybackSettings.new),
       globalReadyProvider.overrideWith((ref) async {}),
       player.playerStateNotifierProvider.overrideWith(_SingleTrackPlayer.new),
@@ -466,6 +493,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(ProviderScope(overrides: [
       backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+      playerHintsProvider.overrideWith(_Hints.new),
       autoplayOnStartupProvider.overrideWith(_PlaybackSettings.new),
       globalReadyProvider.overrideWith((ref) async {}),
       player.playerStateNotifierProvider.overrideWith(_SingleTrackPlayer.new),
@@ -505,6 +533,7 @@ void main() {
     await tester.pumpWidget(ProviderScope(
         overrides: [
           backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+          playerHintsProvider.overrideWith(_Hints.new),
           player.playerStateNotifierProvider
               .overrideWith(_SingleTrackPlayer.new),
           currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),
@@ -725,6 +754,7 @@ void main() {
       await tester.pumpWidget(ProviderScope(
           overrides: [
             backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+            playerHintsProvider.overrideWith(_Hints.new),
             player.playerStateNotifierProvider.overrideWith(() => playback),
             currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),
             playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
@@ -784,6 +814,7 @@ void main() {
     final queue = _ShelfQueue(tracks.map((track) => track.bvid).toList());
     await tester.pumpWidget(ProviderScope(overrides: [
       backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+      playerHintsProvider.overrideWith(_Hints.new),
       globalReadyProvider.overrideWith((ref) async {}),
       player.playerStateNotifierProvider.overrideWith(() => playback),
       currentPlaylistNotifierProvider.overrideWith(() => queue),
@@ -853,6 +884,7 @@ void main() {
       await tester.pumpWidget(ProviderScope(
           overrides: [
             backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+            playerHintsProvider.overrideWith(_Hints.new),
             player.playerStateNotifierProvider.overrideWith(() => playback),
             currentPlaylistNotifierProvider.overrideWith(() => _ShelfQueue([])),
             playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
@@ -906,6 +938,7 @@ void main() {
     final sources = _ImportSources();
     await tester.pumpWidget(ProviderScope(overrides: [
       backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+      playerHintsProvider.overrideWith(_Hints.new),
       globalReadyProvider.overrideWith((ref) async {}),
       bilibiliPlaylistsProvider.overrideWith(() => sources),
       player.playerStateNotifierProvider.overrideWith(_Player.new),
@@ -984,6 +1017,7 @@ void main() {
     final queue = _SearchQueue();
     final container = ProviderContainer(overrides: [
       backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+      playerHintsProvider.overrideWith(_Hints.new),
       searchResultProvider.overrideWith(() => _SearchResults(tracks)),
       currentPlaylistNotifierProvider.overrideWith(() => queue),
       playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
@@ -1022,7 +1056,9 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(ProviderScope(overrides: [
+      autoplayOnStartupProvider.overrideWith(_PlaybackSettings.new),
       backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+      playerHintsProvider.overrideWith(_Hints.new),
       playlistNamesProvider.overrideWith(_Names.new),
       bilibiliPlaylistsProvider.overrideWith(_Sources.new),
       playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
@@ -1059,6 +1095,106 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+      'paper catalog and settings plaque open their pages without swiping',
+      (tester) async {
+    await pumpPage(tester, const Player(isHome: true));
+    await tester.tap(find.byKey(const ValueKey('player-search-entry')));
+    await tester.pumpAndSettle();
+    expect(find.byType(Search), findsOneWidget);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('player-settings-entry')));
+    await tester.pumpAndSettle();
+    expect(find.text('背景外观'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'sleeve bookmark opens collections and playback failures can be retried',
+      (tester) async {
+    final playback = _TonearmPlayer()..failResume = true;
+    final hints = _Hints();
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+          playerHintsProvider.overrideWith(() => hints),
+          player.playerStateNotifierProvider.overrideWith(() => playback),
+          currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),
+          playlistNamesProvider.overrideWith(_Names.new),
+          bilibiliPlaylistsProvider.overrideWith(_Sources.new),
+          playlistIdsNotifierProvider('favorite').overrideWith(_Ids.new),
+          playlistIdsNotifierProvider('一个很长很长的歌单名称，用来验证小屏幕布局')
+              .overrideWith(_Ids.new),
+          trackCoverProvider(_singleTrack)
+              .overrideWith((ref) async => throw StateError('no cover')),
+        ],
+        child: MaterialApp(
+            theme: AppStyle.theme,
+            builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(disableAnimations: true),
+                child: child!),
+            home: const Scaffold(body: Player()))));
+    await tester.pumpAndSettle();
+    final save = find.byKey(const ValueKey('record-sleeve-save'));
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    expect(find.text('收藏到歌单'), findsOneWidget);
+    Navigator.of(tester.element(find.byType(PlaylistPicker))).pop();
+    await tester.pumpAndSettle();
+    final rect = tester.getRect(find.byType(VinylDeck));
+    await tester.tapAt(rect.topLeft + VinylDeckGeometry(rect.size).parkedTip);
+    await tester.pumpAndSettle();
+    expect(find.text('这张唱片暂时无法播放'), findsOneWidget);
+    expect(playback.resumeAttempts, 1);
+    playback.failResume = false;
+    await tester.ensureVisible(find.text('重试'));
+    await tester.tap(find.text('重试'));
+    await tester.pumpAndSettle();
+    expect(playback.resumeAttempts, 2);
+    expect(find.text('这张唱片暂时无法播放'), findsNothing);
+    expect(hints.state, contains('arm'));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('progress guidance disappears after a successful seek',
+      (tester) async {
+    final hints = _Hints();
+    final playback = _SeekingPlayer(ap.PlayerState.paused)..pending.complete();
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+          playerHintsProvider.overrideWith(() => hints),
+          player.playerStateNotifierProvider.overrideWith(() => playback),
+          currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),
+          trackCoverProvider(_singleTrack)
+              .overrideWith((ref) async => throw StateError('no cover')),
+        ],
+        child: MaterialApp(
+            theme: AppStyle.theme, home: const Scaffold(body: Player()))));
+    await tester.pumpAndSettle();
+    final rect = tester.getRect(find.byKey(const ValueKey('vinyl-record')));
+    final radius = rect.width * .43;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final drag = await tester.startGesture(rect.center + Offset(0, -radius));
+      await tester.pump();
+      expect(find.text('顺时针快进，逆时针快退；松手定位。'),
+          attempt == 0 ? findsOneWidget : findsNothing);
+      for (var index = 1; index <= 12; index++) {
+        final angle = -math.pi / 2 + math.pi / 2 * index / 12;
+        await drag.moveTo(
+            rect.center + Offset(math.cos(angle), math.sin(angle)) * radius);
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await drag.up();
+      await tester.pumpAndSettle();
+      expect(hints.state, contains('grooves'));
+    }
+    expect(playback.state.state, ap.PlayerState.paused);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('player previews the actual neighboring tracks from its queue',
       (tester) async {
     final tracks = [
@@ -1069,6 +1205,7 @@ void main() {
     await tester.pumpWidget(ProviderScope(
         overrides: [
           backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+          playerHintsProvider.overrideWith(_Hints.new),
           player.playerStateNotifierProvider
               .overrideWith(_SingleTrackPlayer.new),
           currentPlaylistNotifierProvider.overrideWith(
@@ -1104,6 +1241,7 @@ void main() {
     await tester.pumpWidget(ProviderScope(
         overrides: [
           backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+          playerHintsProvider.overrideWith(_Hints.new),
           player.playerStateNotifierProvider.overrideWith(() => playback),
           currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),
           trackCoverProvider(_singleTrack)
@@ -1153,6 +1291,7 @@ void main() {
       (tester) async {
     await tester.pumpWidget(ProviderScope(overrides: [
       backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+      playerHintsProvider.overrideWith(_Hints.new),
       autoplayOnStartupProvider.overrideWith(_PlaybackSettings.new),
       globalReadyProvider.overrideWith((ref) async {}),
       bilibiliPlaylistsProvider.overrideWith(_Sources.new),
@@ -1166,7 +1305,7 @@ void main() {
     expect(find.byType(Player), findsOneWidget);
     expect(find.byTooltip('设置'), findsNothing);
     expect(find.byTooltip('选唱片'), findsNothing);
-    expect(find.byTooltip('唱片架'), findsNothing);
+    expect(find.byTooltip('播放列表'), findsNothing);
     expect(find.byTooltip('返回'), findsNothing);
     await tester.longPress(find.byKey(const ValueKey('vinyl-record')));
     await tester.pumpAndSettle();
@@ -1195,7 +1334,7 @@ void main() {
         find.byKey(const ValueKey('vinyl-record')), const Offset(0, -100));
     await tester.pumpAndSettle();
     final shelfHeading = find.descendant(
-        of: find.byType(BottomSheet), matching: find.text('唱片架'));
+        of: find.byType(BottomSheet), matching: find.text('播放列表'));
     expect(shelfHeading, findsOneWidget);
     expect(find.text('从歌单选择音乐，唱片会按顺序放入这里'), findsOneWidget);
     Navigator.of(tester.element(shelfHeading)).pop();
@@ -1306,6 +1445,7 @@ void main() {
     await tester.pumpWidget(ProviderScope(
         overrides: [
           backgroundSettingsProvider.overrideWith(_BackgroundSettings.new),
+          playerHintsProvider.overrideWith(_Hints.new),
           player.playerStateNotifierProvider
               .overrideWith(_SingleTrackPlayer.new),
           currentPlaylistNotifierProvider.overrideWith(_SingleTrackQueue.new),

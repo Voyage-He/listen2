@@ -13,6 +13,7 @@ void main() {
   late AudioHandler handler;
   late List<MethodCall> calls;
   late List<int> skips;
+  bool failSeek = false;
 
   void emit(String event, [Object? value]) {
     binding.channelBuffers.push(
@@ -25,11 +26,15 @@ void main() {
   setUp(() async {
     calls = [];
     skips = [];
+    failSeek = false;
     binding.defaultBinaryMessenger
         .setMockMethodCallHandler(sessionChannel, (_) async => null);
     binding.defaultBinaryMessenger.setMockMethodCallHandler(playerChannel,
         (call) async {
       calls.add(call);
+      if (call.method == 'seek' && failSeek) {
+        throw PlatformException(code: 'seek_failed');
+      }
       if (call.method == 'create') {
         final id = (call.arguments as Map)['playerId'];
         binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -119,5 +124,111 @@ void main() {
     expect(calls.where((call) => call.method == 'resume').length, count);
     expect(handler.playbackState.value.processingState,
         AudioProcessingState.completed);
+  });
+
+  test(
+      'holding a playing record fades and pauses, then seeks and restores playback',
+      () async {
+    await handler.load(ap.DeviceFileSource('/cache/song.m4a'));
+    calls.clear();
+    await handler.beginScrub();
+    await Future<void>.delayed(Duration.zero);
+    expect(handler.player.state, ap.PlayerState.paused);
+    expect(handler.player.volume, 0);
+    expect(handler.playbackState.value.playing, isFalse);
+    expect(await handler.finishScrub(const Duration(seconds: 42)), isTrue);
+    await Future<void>.delayed(Duration.zero);
+    expect(handler.player.state, ap.PlayerState.playing);
+    expect(handler.player.volume, 1);
+    final commands = calls.map((call) => call.method).toList();
+    expect(commands.indexOf('pause'), lessThan(commands.indexOf('seek')));
+    expect(commands.indexOf('seek'), lessThan(commands.indexOf('resume')));
+    expect(handler.playbackState.value.updatePosition,
+        const Duration(seconds: 42));
+  });
+
+  test('scrubbing a paused record keeps it paused and preserves its volume',
+      () async {
+    await handler.load(ap.DeviceFileSource('/cache/song.m4a'), autoplay: false);
+    await handler.player.setVolume(.35);
+    calls.clear();
+    await handler.beginScrub();
+    await handler.finishScrub(const Duration(seconds: 12));
+    expect(handler.player.state, ap.PlayerState.paused);
+    expect(handler.player.volume, .35);
+    expect(calls.where((call) => call.method == 'resume'), isEmpty);
+  });
+
+  test('volume changes during a hold stay silent and apply when released',
+      () async {
+    await handler.load(ap.DeviceFileSource('/cache/song.m4a'));
+    await handler.beginScrub();
+    await handler.setVolume(.2);
+    expect(handler.player.volume, 0);
+    await handler.finishScrub(const Duration(seconds: 12));
+    expect(handler.player.state, ap.PlayerState.playing);
+    expect(handler.player.volume, .2);
+  });
+
+  test('cancelling a preview resumes without seeking', () async {
+    await handler.load(ap.DeviceFileSource('/cache/song.m4a'));
+    await handler.beginScrub();
+    calls.clear();
+    await handler.finishScrub();
+    expect(handler.player.state, ap.PlayerState.playing);
+    expect(handler.player.volume, 1);
+    expect(calls.where((call) => call.method == 'seek'), isEmpty);
+  });
+
+  test('explicit pause during the fade prevents a gesture from resuming music',
+      () async {
+    await handler.load(ap.DeviceFileSource('/cache/song.m4a'));
+    calls.clear();
+    final holding = handler.beginScrub();
+    await handler.pause();
+    await holding;
+    expect(await handler.finishScrub(const Duration(seconds: 12)), isFalse);
+    expect(handler.player.state, ap.PlayerState.paused);
+    expect(handler.player.volume, 1);
+    expect(calls.where((call) => call.method == 'resume'), isEmpty);
+    expect(calls.where((call) => call.method == 'seek'), isEmpty);
+  });
+
+  test(
+      'replacing a record cancels the preview before the new source is mounted',
+      () async {
+    await handler.load(ap.DeviceFileSource('/cache/song.m4a'));
+    await handler.beginScrub();
+    await handler.load(ap.DeviceFileSource('/cache/next.m4a'), autoplay: false);
+    calls.clear();
+    expect(await handler.finishScrub(const Duration(seconds: 12)), isFalse);
+    expect(handler.player.state, ap.PlayerState.paused);
+    expect(handler.player.volume, 1);
+    expect(calls, isEmpty);
+  });
+
+  test('seek failure restores volume and the original playback state',
+      () async {
+    await handler.load(ap.DeviceFileSource('/cache/song.m4a'));
+    await handler.beginScrub();
+    failSeek = true;
+    await expectLater(handler.finishScrub(const Duration(seconds: 12)),
+        throwsA(isA<PlatformException>()));
+    expect(handler.player.volume, 1);
+    expect(handler.player.state, ap.PlayerState.playing);
+    expect(await handler.finishScrub(), isFalse);
+  });
+
+  test(
+      'explicit pause while a preview resumes remains the final transport state',
+      () async {
+    await handler.load(ap.DeviceFileSource('/cache/song.m4a'));
+    await handler.beginScrub();
+    final finishing = handler.finishScrub(const Duration(seconds: 12));
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    await handler.pause();
+    await finishing;
+    expect(handler.player.state, ap.PlayerState.paused);
+    expect(handler.player.volume, 1);
   });
 }

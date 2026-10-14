@@ -9,12 +9,14 @@ class RecordShelf extends StatelessWidget {
     required this.covers,
     required this.onOpenQueue,
     required this.onChoosePlaylist,
+    this.onSaveTrack,
     this.busy = false,
   });
   final int count;
   final List<Widget> covers;
   final VoidCallback onOpenQueue;
   final VoidCallback onChoosePlaylist;
+  final VoidCallback? onSaveTrack;
   final bool busy;
   int get _sleeveCount => count.clamp(1, 3).toInt();
 
@@ -33,7 +35,7 @@ class RecordShelf extends StatelessWidget {
                 child: Row(children: [
                   ExcludeSemantics(
                       child: SizedBox(
-                    width: 82,
+                    width: MediaQuery.sizeOf(context).width < 360 ? 56 : 82,
                     height: 58,
                     child: Stack(children: [
                       for (var index = _sleeveCount - 1; index >= 0; index--)
@@ -90,7 +92,7 @@ class RecordShelf extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('唱片架',
+                      const Text('播放列表',
                           style: TextStyle(
                               color: vinylCream,
                               fontSize: 14,
@@ -113,11 +115,34 @@ class RecordShelf extends StatelessWidget {
             ),
           ),
           Container(width: 1, height: 42, color: vinylCream.withOpacity(.18)),
+          Semantics(
+              button: true,
+              enabled: !busy && onSaveTrack != null,
+              label: '收藏到歌单',
+              excludeSemantics: true,
+              child: InkWell(
+                key: const ValueKey('record-sleeve-save'),
+                onTap: busy ? null : onSaveTrack,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 13, vertical: 16),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.bookmark_add_outlined,
+                        color: onSaveTrack == null || busy
+                            ? vinylGold.withOpacity(.4)
+                            : vinylGold,
+                        size: 22),
+                    const SizedBox(height: 5),
+                    const Text('收藏',
+                        style: TextStyle(color: vinylCream, fontSize: 11)),
+                  ]),
+                ),
+              )),
           InkWell(
             key: const ValueKey('record-shelf-playlists'),
             onTap: busy ? null : onChoosePlaylist,
             child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+              padding: EdgeInsets.symmetric(horizontal: 9, vertical: 16),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.library_music_outlined, color: vinylGold, size: 22),
                 SizedBox(height: 5),

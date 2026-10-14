@@ -30,7 +30,7 @@ void main() {
     expect(
         tester.getSemantics(find.byKey(const ValueKey('record-shelf-open'))),
         matchesSemantics(
-            label: '唱片架\n还没有唱片', hasTapAction: true, isFocusable: true));
+            label: '播放列表\n还没有唱片', hasTapAction: true, isFocusable: true));
     expect(tester.takeException(), isNull);
     semantics.dispose();
   });

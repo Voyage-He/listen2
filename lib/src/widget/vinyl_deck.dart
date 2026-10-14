@@ -12,6 +12,11 @@ const vinylGold = Color(0xFFDBBE7E);
 const vinylRevolution = Duration(seconds: 60);
 const vinylArmGrabDelay = Duration(milliseconds: 260);
 
+String vinylTime(Duration time) =>
+    '${time.inMinutes}:${(time.inSeconds % 60).toString().padLeft(2, '0')}';
+
+enum VinylInteraction { scrub, skip }
+
 class VinylTrackPreview {
   const VinylTrackPreview({required this.title, required this.cover});
   final String title;
@@ -86,6 +91,9 @@ class VinylDeck extends StatefulWidget {
       this.onLabelLongPress,
       this.onLabelSwipeUp,
       this.onLabelSwipeDown,
+      this.onScrubStart,
+      this.onScrubCancel,
+      this.onInteraction,
       required this.onArmChanged,
       required this.onSeek,
       required this.onSkip,
@@ -93,6 +101,9 @@ class VinylDeck extends StatefulWidget {
   final VoidCallback? onLabelLongPress;
   final VoidCallback? onLabelSwipeUp;
   final VoidCallback? onLabelSwipeDown;
+  final VoidCallback? onScrubStart;
+  final VoidCallback? onScrubCancel;
+  final ValueChanged<VinylInteraction>? onInteraction;
   final bool playing;
   final bool enabled;
   final bool busy;
@@ -139,6 +150,7 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
   Offset? _start;
   Offset? _end;
   bool _swiping = false;
+  bool _notifiedSkip = false;
   Duration? _target;
   Duration? _pendingSeek;
   Duration _scrubOrigin = Duration.zero;
@@ -179,7 +191,7 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
   void _releaseArm() => setState(_clearArm);
 
   void _startArm(PointerDownEvent event, VinylDeckGeometry geometry) {
-    if (!_available || _armPointer != null) return;
+    if (!_available || _armPointer != null || _start != null) return;
     // Own the pointer immediately, but keep tap feedback visually steady.
     _armPointer = event.pointer;
     _armPressOrigin = event.localPosition;
@@ -287,6 +299,13 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
     _sweep = 0;
     _scrubOrigin = widget.position;
     _lastAngle = math.atan2(local.dy, local.dx);
+    _notifiedSkip = false;
+    if (!_swiping && _available && widget.duration > Duration.zero) {
+      setState(() => _target = _scrubOrigin);
+      widget.onScrubStart?.call();
+      widget.onScrubChanged?.call(_target);
+      widget.onInteraction?.call(VinylInteraction.scrub);
+    }
   }
 
   void _moveRecord(Offset position, double diameter) {
@@ -294,6 +313,10 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
     _end = position;
     if (_swiping) {
       final movement = _end! - _start!;
+      if (!_notifiedSkip && _skipDirection(movement) != null && _available) {
+        _notifiedSkip = true;
+        widget.onInteraction?.call(VinylInteraction.skip);
+      }
       final direction = _skipDirection(movement, threshold: 48);
       if (direction != null &&
           _available &&
@@ -358,7 +381,8 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
     }
   }
 
-  void _cancelRecord() {
+  void _cancelRecord({bool cancelled = false}) {
+    final hadScrub = _target != null && !_swiping;
     if (MediaQuery.of(context).disableAnimations) {
       _translation.value = 0;
       _pull.value = 0;
@@ -378,6 +402,7 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
       _target = null;
     });
     widget.onScrubChanged?.call(null);
+    if (cancelled && hadScrub) widget.onScrubCancel?.call();
   }
 
   void _releasePress() {
@@ -434,7 +459,7 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                       height: diameter,
                       child: Semantics(
                           label:
-                              '唱片，外圈旋转调整播放位置，中心左右拨动换曲，中心上滑打开唱片架，中心下滑收藏到歌单，长按中心打开歌单',
+                              '唱片，外圈旋转调整播放位置，中心左右拨动换曲，中心上滑打开播放列表，中心下滑收藏到歌单，长按中心打开歌单',
                           onLongPress:
                               widget.busy ? null : widget.onLabelLongPress,
                           value: '${(_target ?? widget.position).inSeconds} 秒',
@@ -527,7 +552,7 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                                   _longPressTimer?.cancel();
                                   _recordPointer = null;
                                   _pressOrigin = null;
-                                  _cancelRecord();
+                                  _cancelRecord(cancelled: true);
                                 },
                                 child: AnimatedBuilder(
                                     animation: Listenable.merge([
@@ -669,7 +694,9 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                                                   child: _GlassTimeBubble(
                                                       key: const ValueKey(
                                                           'vinyl-scrub-time'),
-                                                      time: _target!)),
+                                                      time: _target!,
+                                                      delta: _target! -
+                                                          _scrubOrigin)),
                                           ]))),
                                   ],
                                 ))),
@@ -855,8 +882,9 @@ class _SkipPreview extends StatelessWidget {
 }
 
 class _GlassTimeBubble extends StatelessWidget {
-  const _GlassTimeBubble({super.key, required this.time});
+  const _GlassTimeBubble({super.key, required this.time, this.delta});
   final Duration time;
+  final Duration? delta;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -892,10 +920,34 @@ class _GlassTimeBubble extends StatelessWidget {
                               ]),
                           border: Border.all(
                               color: const Color(0x99FFFFFF), width: .8)),
-                      child: Text('${time.inMinutes}:${(time.inSeconds % 60).toString().padLeft(2, '0')}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: vinylCream, fontSize: 13, fontWeight: FontWeight.w600, fontFeatures: [FontFeature.tabularFigures()], shadows: [Shadow(color: Color(0x66000000), blurRadius: 2, offset: Offset(0, 1))])))))));
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Text(
+                            delta == null
+                                ? vinylTime(time)
+                                : '目标 ${vinylTime(time)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: vinylCream,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                fontFeatures: [
+                                  FontFeature.tabularFigures()
+                                ],
+                                shadows: [
+                                  Shadow(
+                                      color: Color(0x66000000),
+                                      blurRadius: 2,
+                                      offset: Offset(0, 1))
+                                ])),
+                        if (delta != null) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                              '${delta!.inMilliseconds < 0 ? '−' : '+'}${delta!.inSeconds.abs()} 秒',
+                              style: const TextStyle(
+                                  color: vinylCream, fontSize: 10)),
+                        ],
+                      ]))))));
 }
 
 enum _TimeBubbleSlot { duration, position }

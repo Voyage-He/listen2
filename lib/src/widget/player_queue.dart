@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,9 +29,6 @@ class _PlayerQueueState extends ConsumerState<PlayerQueue> {
   int _focusGeneration = 0;
   int? _focusedIndex;
   String? _focusedId;
-  int _locatedIndex = -1;
-  String? _locatedId;
-  List<String> _locatedIds = [];
 
   double get _itemExtent {
     final scaler = MediaQuery.textScalerOf(context);
@@ -49,20 +45,19 @@ class _PlayerQueueState extends ConsumerState<PlayerQueue> {
     return queue.playlist.indexOf(id);
   }
 
-  Future<void> _locateCurrent({bool animated = true}) async {
+  Future<void> _locateCurrent() async {
     if (!mounted || !_scroll.hasClients) return;
     final id = ref.read(playerStateNotifierProvider).track?.bvid;
     final queue = ref.read(currentPlaylistNotifierProvider);
     final index = _currentIndex(queue, id);
     if (index < 0) return;
     final generation = ++_focusGeneration;
-    _focusTimer?.cancel();
     final position = _scroll.position;
     final target =
         (index * _itemExtent - (position.viewportDimension - _itemExtent) / 2)
             .clamp(0.0, position.maxScrollExtent)
             .toDouble();
-    if (animated && !MediaQuery.disableAnimationsOf(context)) {
+    if (!MediaQuery.disableAnimationsOf(context)) {
       await _scroll.animateTo(target,
           duration: const Duration(milliseconds: 380),
           curve: Curves.easeOutCubic);
@@ -75,6 +70,7 @@ class _PlayerQueueState extends ConsumerState<PlayerQueue> {
         _currentIndex(ref.read(currentPlaylistNotifierProvider), id) != index) {
       return;
     }
+    _focusTimer?.cancel();
     setState(() {
       _focusedIndex = index;
       _focusedId = id;
@@ -105,21 +101,6 @@ class _PlayerQueueState extends ConsumerState<PlayerQueue> {
         : ref.watch(currentPlaylistNotifierProvider);
     final ids = currentId == null ? <String>[] : queue.playlist;
     final currentIndex = _currentIndex(queue, currentId);
-    if (currentIndex >= 0 &&
-        (_locatedIndex != currentIndex ||
-            _locatedId != currentId ||
-            !listEquals(_locatedIds, ids))) {
-      _locatedIndex = currentIndex;
-      _locatedId = currentId;
-      _locatedIds = List.of(ids);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_locateCurrent(animated: false));
-      });
-    } else if (currentIndex < 0) {
-      _locatedIndex = -1;
-      _locatedId = null;
-      _locatedIds = [];
-    }
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
@@ -170,7 +151,7 @@ class _PlayerQueueState extends ConsumerState<PlayerQueue> {
                       final item = ref.watch(trackProvider(id));
                       final current = index == currentIndex;
                       final focused =
-                          index == _focusedIndex && id == _focusedId;
+                          current && index == _focusedIndex && id == _focusedId;
                       return AnimatedContainer(
                         key: ValueKey('queue-focus-$index'),
                         duration: reduceMotion

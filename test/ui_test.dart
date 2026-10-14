@@ -856,7 +856,7 @@ void main() {
 
   for (final scale in [1.0, 1.6]) {
     testWidgets(
-        'queue locates and briefly highlights the current track at $scale',
+        'queue only locates and briefly highlights on manual request at $scale',
         (tester) async {
       tester.view.physicalSize = const Size(320, 640);
       tester.view.devicePixelRatio = 1;
@@ -892,6 +892,16 @@ void main() {
       await tester.pumpAndSettle();
       final list = find.byType(ListView);
       final current = find.byKey(const ValueKey('queue-track-30'));
+      final scrollable =
+          find.descendant(of: list, matching: find.byType(Scrollable));
+      final position = tester.state<ScrollableState>(scrollable).position;
+      expect(position.pixels, 0);
+      expect(find.descendant(of: list, matching: find.text('Record 30')),
+          findsNothing);
+      expect(find.descendant(of: list, matching: find.text('Record 0')),
+          findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('queue-locate-current')));
+      await tester.pumpAndSettle();
       expect(find.descendant(of: list, matching: find.text('Record 30')),
           findsOneWidget);
       expect(tester.getRect(current).center.dy,
@@ -903,8 +913,6 @@ void main() {
           .color!;
       expect(focusColor(30), vinylGold.withOpacity(.38));
       expect(tester.widget<ListTile>(current).selected, isTrue);
-      final scrollable =
-          find.descendant(of: list, matching: find.byType(Scrollable));
       await tester.scrollUntilVisible(find.text('Record 59'), 250,
           scrollable: scrollable);
       await tester.pumpAndSettle();
@@ -917,7 +925,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(focusColor(30), vinylOlive.withOpacity(.08));
       expect(tester.widget<ListTile>(current).selected, isTrue);
+      final offset = position.pixels;
       playback.select(tracks[12]);
+      await tester.pumpAndSettle();
+      expect(position.pixels, offset);
+      expect(find.descendant(of: list, matching: find.text('Record 12')),
+          findsNothing);
+      await tester.tap(find.byKey(const ValueKey('queue-locate-current')));
       await tester.pumpAndSettle();
       expect(find.descendant(of: list, matching: find.text('Record 12')),
           findsOneWidget);

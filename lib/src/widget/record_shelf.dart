@@ -11,6 +11,7 @@ class RecordShelf extends StatelessWidget {
     required this.onChoosePlaylist,
     this.onSaveTrack,
     this.busy = false,
+    this.compact = false,
   });
   final int count;
   final List<Widget> covers;
@@ -18,7 +19,11 @@ class RecordShelf extends StatelessWidget {
   final VoidCallback onChoosePlaylist;
   final VoidCallback? onSaveTrack;
   final bool busy;
+  final bool compact;
   int get _sleeveCount => count.clamp(1, 3).toInt();
+
+  Widget _fit(Widget child) =>
+      compact ? FittedBox(fit: BoxFit.scaleDown, child: child) : child;
 
   @override
   Widget build(BuildContext context) => Material(
@@ -31,19 +36,22 @@ class RecordShelf extends StatelessWidget {
               key: const ValueKey('record-shelf-open'),
               onTap: busy ? null : onOpenQueue,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
+                padding: EdgeInsets.fromLTRB(
+                    12, compact ? 6 : 12, 8, compact ? 6 : 12),
                 child: Row(children: [
                   ExcludeSemantics(
                       child: SizedBox(
-                    width: MediaQuery.sizeOf(context).width < 360 ? 56 : 82,
-                    height: 58,
+                    width: compact || MediaQuery.sizeOf(context).width < 360
+                        ? 56
+                        : 82,
+                    height: compact ? 40 : 58,
                     child: Stack(children: [
                       for (var index = _sleeveCount - 1; index >= 0; index--)
                         Positioned(
-                          left: index * 12,
-                          top: index * 3,
-                          width: 52,
-                          height: 52,
+                          left: index * (compact ? 10 : 12),
+                          top: index * (compact ? 2 : 3),
+                          width: compact ? 34 : 52,
+                          height: compact ? 34 : 52,
                           child: Transform.rotate(
                             angle: (index - 1) * .09,
                             child: Container(
@@ -88,33 +96,49 @@ class RecordShelf extends StatelessWidget {
                   )),
                   const SizedBox(width: 10),
                   Expanded(
-                      child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('播放列表',
-                          style: TextStyle(
-                              color: vinylCream,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 5),
-                      Text(
-                          busy
-                              ? '请稍候…'
-                              : count == 0
-                                  ? '还没有唱片'
-                                  : '$count 张 · 点按翻看',
-                          style: TextStyle(
-                              color: vinylCream.withOpacity(.75),
-                              fontSize: 10,
-                              height: 1.4)),
-                    ],
-                  )),
+                      child: LayoutBuilder(builder: (context, constraints) {
+                    final labels = Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('播放列表',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                color: vinylCream,
+                                fontSize: compact ? 12 : 14,
+                                fontWeight: FontWeight.w600)),
+                        SizedBox(height: compact ? 2 : 5),
+                        Text(
+                            busy
+                                ? '请稍候…'
+                                : count == 0
+                                    ? '还没有唱片'
+                                    : '$count 张 · 点按翻看',
+                            maxLines: compact ? 1 : null,
+                            overflow: compact ? TextOverflow.ellipsis : null,
+                            style: TextStyle(
+                                color: vinylCream.withOpacity(.75),
+                                fontSize: compact ? 9 : 10,
+                                height: 1.4)),
+                      ],
+                    );
+                    return compact
+                        ? FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: SizedBox(
+                                width: constraints.maxWidth, child: labels))
+                        : labels;
+                  })),
                 ]),
               ),
             ),
           ),
-          Container(width: 1, height: 42, color: vinylCream.withOpacity(.18)),
+          Container(
+              width: 1,
+              height: compact ? 30 : 42,
+              color: vinylCream.withOpacity(.18)),
           Semantics(
               button: true,
               enabled: !busy && onSaveTrack != null,
@@ -124,30 +148,33 @@ class RecordShelf extends StatelessWidget {
                 key: const ValueKey('record-sleeve-save'),
                 onTap: busy ? null : onSaveTrack,
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 13, vertical: 16),
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  padding: EdgeInsets.symmetric(
+                      horizontal: 13, vertical: compact ? 6 : 16),
+                  child: _fit(Column(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.bookmark_add_outlined,
                         color: onSaveTrack == null || busy
                             ? vinylGold.withOpacity(.4)
                             : vinylGold,
-                        size: 22),
-                    const SizedBox(height: 5),
+                        size: compact ? 20 : 22),
+                    SizedBox(height: compact ? 2 : 5),
                     const Text('收藏',
                         style: TextStyle(color: vinylCream, fontSize: 11)),
-                  ]),
+                  ])),
                 ),
               )),
           InkWell(
             key: const ValueKey('record-shelf-playlists'),
             onTap: busy ? null : onChoosePlaylist,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 9, vertical: 16),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.library_music_outlined, color: vinylGold, size: 22),
-                SizedBox(height: 5),
-                Text('选歌单', style: TextStyle(color: vinylCream, fontSize: 11)),
-              ]),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                  horizontal: 9, vertical: compact ? 6 : 16),
+              child: _fit(Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.library_music_outlined,
+                    color: vinylGold, size: compact ? 20 : 22),
+                SizedBox(height: compact ? 2 : 5),
+                const Text('选歌单',
+                    style: TextStyle(color: vinylCream, fontSize: 11)),
+              ])),
             ),
           ),
         ]),

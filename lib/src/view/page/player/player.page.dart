@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
@@ -396,7 +397,6 @@ class _PlayerState extends ConsumerState<Player> {
       'skip' => '看到「松手换」后松手；拖回即可取消。',
       _ => null,
     };
-    final textScaler = MediaQuery.textScalerOf(context);
     final queue = track == null
         ? <String>[]
         : ref.watch(currentPlaylistNotifierProvider).playlist;
@@ -414,241 +414,328 @@ class _PlayerState extends ConsumerState<Player> {
 
     final previous = previewAt(index - 1);
     final next = previewAt(index + 1);
+    final status = _busy
+        ? _busyLabel
+        : state.loading
+            ? '等待音乐加载'
+            : _scrubbing != null
+                ? '正在转动唱片'
+                : playing
+                    ? '唱针已落下 · 正在播放'
+                    : '唱针已抬起 · 等待聆听';
     return GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onHorizontalDragStart:
-            widget.isHome ? (_) => _pageSwipeDistance = 0 : null,
-        onHorizontalDragUpdate: widget.isHome
-            ? (details) => _pageSwipeDistance += details.delta.dx
-            : null,
-        onHorizontalDragEnd: widget.isHome
-            ? (_) {
-                if (_pageSwipeDistance.abs() >= 72) {
-                  _openSidePage(_pageSwipeDistance > 0 ? 1 : -1);
-                }
-                _pageSwipeDistance = 0;
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragStart:
+          widget.isHome ? (_) => _pageSwipeDistance = 0 : null,
+      onHorizontalDragUpdate: widget.isHome
+          ? (details) => _pageSwipeDistance += details.delta.dx
+          : null,
+      onHorizontalDragEnd: widget.isHome
+          ? (_) {
+              if (_pageSwipeDistance.abs() >= 72) {
+                _openSidePage(_pageSwipeDistance > 0 ? 1 : -1);
               }
-            : null,
-        onHorizontalDragCancel:
-            widget.isHome ? () => _pageSwipeDistance = 0 : null,
-        child: _PlayerSurface(
-            color: vinylCream,
-            child: Column(children: [
-              Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-                  child: Row(children: [
-                    if (widget.isHome)
-                      const SizedBox(width: 48, height: 48)
-                    else
-                      IconButton(
-                          tooltip: '返回',
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                              color: vinylInk)),
-                    const Expanded(
-                        child: Column(children: [
+              _pageSwipeDistance = 0;
+            }
+          : null,
+      onHorizontalDragCancel:
+          widget.isHome ? () => _pageSwipeDistance = 0 : null,
+      child: _PlayerSurface(
+        color: vinylCream,
+        child: Column(children: [
+          SizedBox(
+            height: 44,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(children: [
+                if (widget.isHome)
+                  const SizedBox(width: 44)
+                else
+                  IconButton(
+                    tooltip: '返回',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                        color: vinylInk),
+                  ),
+                const Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
                       Text('LISTEN 2',
                           style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 11,
                               letterSpacing: 3,
                               color: vinylInk,
                               fontWeight: FontWeight.w600)),
-                      SizedBox(height: 4),
+                      SizedBox(height: 2),
                       Text('THE RECORD ROOM',
                           style: TextStyle(
-                              fontSize: 8,
+                              fontSize: 7,
                               letterSpacing: 2,
                               color: vinylOlive)),
-                    ])),
-                    IconButton(
-                        tooltip: '操作说明',
-                        onPressed: _showInstructions,
-                        icon: const Icon(Icons.info_outline_rounded,
-                            color: vinylOlive, size: 22)),
-                  ])),
-              Expanded(
-                  child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                child: Center(
-                    child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 460),
-                        child: Column(children: [
-                          Row(children: [
-                            Container(
-                                width: 5,
-                                height: 5,
-                                decoration: const BoxDecoration(
-                                    color: vinylOlive, shape: BoxShape.circle)),
-                            const SizedBox(width: 8),
-                            Expanded(
-                                child: Text(
-                                    _busy
-                                        ? _busyLabel
-                                        : state.loading
-                                            ? '等待音乐加载'
-                                            : _scrubbing != null
-                                                ? '正在转动唱片'
-                                                : playing
-                                                    ? '唱针已落下 · 正在播放'
-                                                    : '唱针已抬起 · 等待聆听',
-                                    style: const TextStyle(
-                                        color: vinylOlive,
-                                        fontSize: 11,
-                                        letterSpacing: .5))),
-                            const Text('SIDE A',
-                                style: TextStyle(
-                                    color: vinylOlive,
-                                    fontSize: 10,
-                                    letterSpacing: 2)),
-                          ]),
-                          const SizedBox(height: 16),
-                          VinylDeck(
-                              playing: deckPlaying,
-                              position: state.now,
-                              duration: state.length,
-                              enabled: track != null,
-                              busy: _busy || state.loading,
-                              unavailableDirection: _unavailableDirection,
-                              previousTrack: previous,
-                              nextTrack: next,
-                              canSkipPrevious: index > 0,
-                              canSkipNext:
-                                  index >= 0 && index + 1 < queue.length,
-                              cover: const CurrentTrackCover(
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  fit: BoxFit.cover),
-                              onArmChanged: _moveArm,
-                              onSkip: _skip,
-                              onLabelLongPress: _showPlaylists,
-                              onLabelSwipeUp: _showQueue,
-                              onLabelSwipeDown: _showSavePlaylists,
-                              onSeek: _seek,
-                              onScrubStart: _beginScrub,
-                              onScrubCancel: () => unawaited(_cancelScrub()),
-                              onInteraction: (interaction) {
-                                final key =
-                                    interaction == VinylInteraction.scrub
-                                        ? 'grooves'
-                                        : 'skip';
-                                if (!seenHints.contains(key)) {
-                                  setState(() => _contextHint = key);
-                                }
-                              },
-                              onScrubChanged: (value) {
-                                if (mounted) {
-                                  setState(() => _scrubbing = value);
-                                }
-                              }),
-                          const SizedBox(height: 12),
-                          RecordShelf(
-                            count: queue.length,
-                            busy: _busy,
-                            covers: [
-                              if (track != null)
-                                TrackCover(track, fit: BoxFit.cover),
-                              if (next != null) next.cover,
-                              if (previous != null) previous.cover,
-                            ],
-                            onOpenQueue: _showQueue,
-                            onChoosePlaylist: _showPlaylists,
-                            onSaveTrack:
-                                track == null ? null : _showSavePlaylists,
-                          ),
-                          SizedBox(
-                              height: textScaler.scale(12) * 3.7,
-                              child: Row(children: [
-                                Expanded(
-                                    child: Text(
-                                        hint ??
-                                            (track == null
-                                                ? '选择音乐，开始聆听'
-                                                : '${vinylTime(_scrubbing ?? state.now)} / ${vinylTime(state.length)}'),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                            color: vinylOlive,
-                                            fontSize: 12,
-                                            height: 1.5))),
-                                if (hint != null)
-                                  IconButton(
-                                      tooltip: '隐藏提示',
-                                      onPressed: () => _markHint(hintKey!),
-                                      icon: const Icon(Icons.close_rounded,
-                                          color: vinylOlive, size: 16)),
-                              ])),
-                          const SizedBox(height: 8),
-                          SizedBox(
-                              key: const ValueKey('player-track-title'),
-                              width: double.infinity,
-                              height: textScaler.scale(24) * 1.35 * 2,
-                              child: Center(
-                                  child: Text(track?.title ?? '让音乐，慢慢转起来',
-                                      textAlign: TextAlign.center,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      strutStyle: const StrutStyle(
-                                          fontSize: 24,
-                                          height: 1.35,
-                                          forceStrutHeight: true),
-                                      style: const TextStyle(
-                                          color: vinylInk,
-                                          fontSize: 24,
-                                          fontWeight: FontWeight.w600,
-                                          height: 1.35,
-                                          letterSpacing: -.5)))),
-                          const SizedBox(height: 10),
-                          SizedBox(
-                              key: const ValueKey('player-track-singer'),
-                              width: double.infinity,
-                              height: textScaler.scale(15) * 1.4 + 14,
-                              child: Center(
-                                  child: singer.isEmpty
-                                      ? const SizedBox.shrink()
-                                      : Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 14, vertical: 6),
-                                          decoration: BoxDecoration(
-                                              color:
-                                                  vinylCream.withOpacity(.65),
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              border: Border.all(
-                                                  color: vinylOlive
-                                                      .withOpacity(.24),
-                                                  width: .8)),
-                                          child: Text(singer,
-                                              textAlign: TextAlign.center,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              strutStyle: const StrutStyle(
-                                                  fontSize: 15,
-                                                  height: 1.4,
-                                                  forceStrutHeight: true),
-                                              style: const TextStyle(
-                                                  color: vinylInk,
-                                                  fontSize: 15,
-                                                  fontWeight: FontWeight.w500,
-                                                  height: 1.4))))),
-                          if (_feedback != null) ...[
-                            const SizedBox(height: 12),
-                            Text(_feedback!,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                    color: Color(0xFF9B593D),
-                                    fontSize: 11,
-                                    height: 1.6)),
-                            if (_retry != null)
-                              TextButton.icon(
-                                  onPressed: _busy ? null : _retry,
-                                  icon: const Icon(Icons.refresh_rounded,
-                                      size: 18),
-                                  label: const Text('重试')),
-                          ],
-                        ]))),
-              )),
-            ])));
+                    ]),
+                  ),
+                ),
+                IconButton(
+                  tooltip: '操作说明',
+                  onPressed: _showInstructions,
+                  icon: const Icon(Icons.info_outline_rounded,
+                      color: vinylOlive, size: 20),
+                ),
+              ]),
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+              child: LayoutBuilder(builder: (context, constraints) {
+                final beside =
+                    constraints.maxWidth >= 620 && constraints.maxHeight < 760;
+                final deckWidth = math.min(460.0,
+                    beside ? constraints.maxWidth * .6 : constraints.maxWidth);
+                final deck = SizedBox(
+                  width: deckWidth,
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    SizedBox(
+                      height: 18,
+                      child: Row(children: [
+                        Container(
+                          width: 4,
+                          height: 4,
+                          decoration: const BoxDecoration(
+                              color: vinylOlive, shape: BoxShape.circle),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                            child: _FitPlayerText(status,
+                                fontSize: 10, alignment: Alignment.centerLeft)),
+                        const SizedBox(width: 8),
+                        const SizedBox(
+                            width: 48,
+                            child: _FitPlayerText('SIDE A', fontSize: 9)),
+                      ]),
+                    ),
+                    const SizedBox(height: 6),
+                    VinylDeck(
+                      playing: deckPlaying,
+                      position: state.now,
+                      duration: state.length,
+                      enabled: track != null,
+                      busy: _busy || state.loading,
+                      unavailableDirection: _unavailableDirection,
+                      previousTrack: previous,
+                      nextTrack: next,
+                      canSkipPrevious: index > 0,
+                      canSkipNext: index >= 0 && index + 1 < queue.length,
+                      cover: const CurrentTrackCover(
+                          width: double.infinity,
+                          height: double.infinity,
+                          fit: BoxFit.cover),
+                      onArmChanged: _moveArm,
+                      onSkip: _skip,
+                      onLabelLongPress: _showPlaylists,
+                      onLabelSwipeUp: _showQueue,
+                      onLabelSwipeDown: _showSavePlaylists,
+                      onSeek: _seek,
+                      onScrubStart: _beginScrub,
+                      onScrubCancel: () => unawaited(_cancelScrub()),
+                      onInteraction: (interaction) {
+                        final key = interaction == VinylInteraction.scrub
+                            ? 'grooves'
+                            : 'skip';
+                        if (!seenHints.contains(key)) {
+                          setState(() => _contextHint = key);
+                        }
+                      },
+                      onScrubChanged: (value) {
+                        if (mounted) setState(() => _scrubbing = value);
+                      },
+                    ),
+                  ]),
+                );
+                final controls = _PlayerControls(
+                  shelf: RecordShelf(
+                    compact: true,
+                    count: queue.length,
+                    busy: _busy,
+                    covers: [
+                      if (track != null) TrackCover(track, fit: BoxFit.cover),
+                      if (next != null) next.cover,
+                      if (previous != null) previous.cover,
+                    ],
+                    onOpenQueue: _showQueue,
+                    onChoosePlaylist: _showPlaylists,
+                    onSaveTrack: track == null ? null : _showSavePlaylists,
+                  ),
+                  hint: hint ??
+                      (track == null
+                          ? '选择音乐，开始聆听'
+                          : '${vinylTime(_scrubbing ?? state.now)} / ${vinylTime(state.length)}'),
+                  onHideHint: hint == null ? null : () => _markHint(hintKey!),
+                  title: track?.title ?? '让音乐，慢慢转起来',
+                  singer: singer,
+                  feedback: _feedback,
+                  retry: _busy ? null : _retry,
+                );
+                if (beside) {
+                  return Row(children: [
+                    deck,
+                    const SizedBox(width: 16),
+                    Expanded(child: controls),
+                  ]);
+                }
+                return Center(
+                  child: SizedBox(
+                    width: deckWidth,
+                    child: Column(children: [
+                      deck,
+                      const SizedBox(height: 8),
+                      Expanded(child: controls),
+                    ]),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ]),
+      ),
+    );
   }
+}
+
+class _FitPlayerText extends StatelessWidget {
+  const _FitPlayerText(
+    this.text, {
+    required this.fontSize,
+    this.maxLines = 1,
+    this.alignment = Alignment.center,
+    this.color = vinylOlive,
+    this.weight = FontWeight.normal,
+  });
+  final String text;
+  final double fontSize;
+  final int maxLines;
+  final Alignment alignment;
+  final Color color;
+  final FontWeight weight;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) => FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: alignment,
+          child: SizedBox(
+            width: constraints.maxWidth,
+            child: Text(
+              text,
+              maxLines: maxLines,
+              overflow: TextOverflow.ellipsis,
+              textAlign: alignment == Alignment.centerLeft
+                  ? TextAlign.left
+                  : TextAlign.center,
+              style: TextStyle(
+                  color: color,
+                  fontSize: fontSize,
+                  fontWeight: weight,
+                  height: 1.3),
+            ),
+          ),
+        ),
+      );
+}
+
+class _PlayerControls extends StatelessWidget {
+  const _PlayerControls({
+    required this.shelf,
+    required this.hint,
+    required this.title,
+    required this.singer,
+    this.onHideHint,
+    this.feedback,
+    this.retry,
+  });
+  final Widget shelf;
+  final String hint;
+  final String title;
+  final String singer;
+  final VoidCallback? onHideHint;
+  final String? feedback;
+  final VoidCallback? retry;
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        SizedBox(height: 52, child: shelf),
+        const SizedBox(height: 4),
+        SizedBox(
+            height: 44,
+            child: Row(children: [
+              Expanded(
+                  child: _FitPlayerText(feedback ?? hint,
+                      fontSize: 11,
+                      maxLines: 2,
+                      alignment: Alignment.centerLeft,
+                      color: feedback == null
+                          ? vinylOlive
+                          : const Color(0xFF9B593D))),
+              if (feedback != null && retry != null)
+                TextButton.icon(
+                    onPressed: retry,
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                    label: const Text('重试'))
+              else if (feedback == null && onHideHint != null)
+                IconButton(
+                    tooltip: '隐藏提示',
+                    onPressed: onHideHint,
+                    icon: const Icon(Icons.close_rounded,
+                        color: vinylOlive, size: 16)),
+            ])),
+        const SizedBox(height: 4),
+        Expanded(
+            flex: 3,
+            child: SizedBox(
+              key: const ValueKey('player-track-title'),
+              width: double.infinity,
+              child: _FitPlayerText(title,
+                  fontSize: 20,
+                  maxLines: 2,
+                  color: vinylInk,
+                  weight: FontWeight.w600),
+            )),
+        Expanded(
+            child: SizedBox(
+          key: const ValueKey('player-track-singer'),
+          width: double.infinity,
+          child: singer.isEmpty
+              ? const SizedBox.shrink()
+              : LayoutBuilder(
+                  builder: (context, constraints) => FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: ConstrainedBox(
+                      constraints:
+                          BoxConstraints(maxWidth: constraints.maxWidth - 16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: vinylCream.withOpacity(.65),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: vinylOlive.withOpacity(.24), width: .8),
+                        ),
+                        child: Text(singer,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: vinylInk,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                height: 1.3)),
+                      ),
+                    ),
+                  ),
+                ),
+        )),
+      ]);
 }
 
 class _PlayerSurface extends StatelessWidget {

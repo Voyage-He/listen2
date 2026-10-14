@@ -508,7 +508,10 @@ void main() {
     expect(tester.getRect(find.byType(ImageFiltered)),
         const Rect.fromLTWH(0, 0, 390, 844));
     expect(tester.getRect(find.text('LISTEN 2')).top, greaterThanOrEqualTo(59));
-    expect(tester.getRect(find.byType(SingleChildScrollView)).bottom,
+    expect(
+        tester
+            .getRect(find.byKey(const ValueKey('player-track-singer')))
+            .bottom,
         lessThanOrEqualTo(810));
 
     await tester.drag(find.text('LISTEN 2'), const Offset(120, 0));
@@ -867,8 +870,9 @@ void main() {
   for (final (size, scale) in [
     (const Size(320, 640), 1.0),
     (const Size(390, 844), 1.6),
+    (const Size(402, 874), 1.0),
   ]) {
-    testWidgets('track titles keep layout and scroll stable at $size / $scale',
+    testWidgets('player stays on one page with stable titles at $size / $scale',
         (tester) async {
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
@@ -895,16 +899,16 @@ void main() {
           child: MaterialApp(
               theme: AppStyle.theme,
               builder: (context, child) => MediaQuery(
-                  data: MediaQuery.of(context)
-                      .copyWith(textScaler: TextScaler.linear(scale)),
+                  data: MediaQuery.of(context).copyWith(
+                      textScaler: TextScaler.linear(scale),
+                      padding: size.width == 402
+                          ? const EdgeInsets.only(top: 59, bottom: 34)
+                          : EdgeInsets.zero),
                   child: child!),
               home: const Scaffold(body: Player()))));
       await tester.pumpAndSettle();
-      final scroll = tester.state<ScrollableState>(find.byType(Scrollable));
-      scroll.position.jumpTo(scroll.position.maxScrollExtent);
-      await tester.pump();
-      final offset = scroll.position.pixels;
-      final extent = scroll.position.maxScrollExtent;
+      expect(find.byType(Scrollable), findsNothing);
+      expect(tester.getSize(find.byType(VinylDeck)).width, size.width - 32);
       final bounds = {
         for (final key in [
           'vinyl-record',
@@ -913,6 +917,8 @@ void main() {
         ])
           key: tester.getRect(find.byKey(ValueKey(key))),
       };
+      await tester.drag(find.text('LISTEN 2'), const Offset(0, -100));
+      await tester.pumpAndSettle();
 
       for (final track in <Track?>[...tracks, null]) {
         playback.select(track);
@@ -922,8 +928,21 @@ void main() {
               reason:
                   'Switching to ${track?.title} must not move ${entry.key}');
         }
-        expect(scroll.position.pixels, offset);
-        expect(scroll.position.maxScrollExtent, extent);
+        for (final key in [
+          'record-shelf-open',
+          'record-sleeve-save',
+          'record-shelf-playlists',
+          'player-track-title',
+          'player-track-singer',
+        ]) {
+          final rect = tester.getRect(find.byKey(ValueKey(key)));
+          expect(rect.left, greaterThanOrEqualTo(0));
+          expect(rect.right, lessThanOrEqualTo(size.width));
+          expect(rect.top, greaterThanOrEqualTo(size.width == 402 ? 59 : 0));
+          expect(rect.bottom,
+              lessThanOrEqualTo(size.height - (size.width == 402 ? 34 : 0)));
+        }
+        expect(find.byType(Scrollable), findsNothing);
         expect(tester.takeException(), isNull);
       }
     });
@@ -1255,8 +1274,6 @@ void main() {
     final geometry = VinylDeckGeometry(rect.size);
     final parked = rect.topLeft + geometry.parkedTip;
     final landed = rect.topLeft + geometry.tip(1, .25);
-    final scroll =
-        tester.state<ScrollableState>(find.byType(Scrollable)).position;
     Future<void> dragArm(Offset start, Offset end) async {
       final drag = await tester.startGesture(start);
       for (var index = 1; index <= 20; index++) {
@@ -1267,7 +1284,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(Search), findsNothing);
       expect(find.text('背景外观'), findsNothing);
-      expect(scroll.pixels, 0);
+      expect(tester.getRect(find.byType(VinylDeck)), rect);
+      expect(find.byType(Scrollable), findsNothing);
       expect(find.byType(Player), findsOneWidget);
     }
 

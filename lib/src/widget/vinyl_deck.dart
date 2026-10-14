@@ -826,55 +826,68 @@ class _SkipPreview extends StatelessWidget {
         : ready
             ? '松手换${direction < 0 ? '上一张' : '下一张'}'
             : '继续拨动换曲';
-    return Semantics(
-      liveRegion: true,
-      label: '$hint${available && track != null ? '，${track!.title}' : ''}',
-      child: ExcludeSemantics(
-        child: Container(
-          padding: const EdgeInsets.all(9),
-          decoration: BoxDecoration(
-            color: vinylCream,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-                color: ready && available ? vinylGold : const Color(0xFFB6A58A),
-                width: ready && available ? 2 : 1),
-            boxShadow: const [
-              BoxShadow(
-                  color: Color(0x66000000),
-                  blurRadius: 12,
-                  offset: Offset(0, 5)),
-            ],
-          ),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (available) ...[
-              AspectRatio(
-                aspectRatio: 1,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: track?.cover ??
-                      const ColoredBox(
-                        color: Color(0xFFE5D8B6),
-                        child: Center(
-                            child:
-                                Icon(Icons.album_outlined, color: vinylOlive)),
-                      ),
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final inflate = ready && available && !reduceMotion;
+    return TweenAnimationBuilder<double>(
+      key: ValueKey(direction),
+      tween: Tween(begin: 1, end: inflate ? 1.05 : 1),
+      duration: reduceMotion
+          ? Duration.zero
+          : Duration(milliseconds: inflate ? 300 : 180),
+      curve: inflate ? Curves.easeOutBack : Curves.easeOutCubic,
+      builder: (context, scale, child) =>
+          Transform.scale(scale: scale, child: child),
+      child: Semantics(
+        liveRegion: true,
+        label: '$hint${available && track != null ? '，${track!.title}' : ''}',
+        child: ExcludeSemantics(
+          child: Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: vinylCream,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                  color:
+                      ready && available ? vinylGold : const Color(0xFFB6A58A),
+                  width: ready && available ? 2 : 1),
+              boxShadow: const [
+                BoxShadow(
+                    color: Color(0x66000000),
+                    blurRadius: 12,
+                    offset: Offset(0, 5)),
+              ],
+            ),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (available) ...[
+                AspectRatio(
+                  aspectRatio: 1,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: track?.cover ??
+                        const ColoredBox(
+                          color: Color(0xFFE5D8B6),
+                          child: Center(
+                              child: Icon(Icons.album_outlined,
+                                  color: vinylOlive)),
+                        ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 7),
-              Text(track?.title ?? '唱片信息加载中…',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                const SizedBox(height: 7),
+                Text(track?.title ?? '唱片信息加载中…',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: vinylInk,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 5),
+              ],
+              Text(hint,
                   style: const TextStyle(
-                      color: vinylInk,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600)),
-              const SizedBox(height: 5),
-            ],
-            Text(hint,
-                style: const TextStyle(
-                    color: vinylOlive, fontSize: 10, height: 1.4)),
-          ]),
+                      color: vinylOlive, fontSize: 10, height: 1.4)),
+            ]),
+          ),
         ),
       ),
     );

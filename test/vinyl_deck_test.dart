@@ -486,7 +486,7 @@ void main() {
         skip: (value) async => skips.add(value));
     final center = tester.getCenter(find.byKey(const ValueKey('vinyl-record')));
     final drag = await tester.startGesture(center);
-    await drag.moveTo(center + const Offset(-30, 0));
+    await drag.moveTo(center + const Offset(-50, 0));
     await tester.pump();
     expect(find.text('下一张封面'), findsOneWidget);
     expect(find.text('继续拨动换曲'), findsOneWidget);

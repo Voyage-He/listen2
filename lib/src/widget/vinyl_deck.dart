@@ -11,6 +11,7 @@ const vinylOlive = Color(0xFF657052);
 const vinylGold = Color(0xFFDBBE7E);
 const vinylRevolution = Duration(seconds: 60);
 const vinylArmGrabDelay = Duration(milliseconds: 260);
+const _vinylSkipThreshold = 56.0;
 
 String vinylTime(Duration time) =>
     '${time.inMinutes}:${(time.inSeconds % 60).toString().padLeft(2, '0')}';
@@ -317,7 +318,8 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
         _notifiedSkip = true;
         widget.onInteraction?.call(VinylInteraction.skip);
       }
-      final direction = _skipDirection(movement, threshold: 48);
+      final direction =
+          _skipDirection(movement, threshold: _vinylSkipThreshold);
       if (direction != null &&
           _available &&
           _canSkip(direction) &&
@@ -354,7 +356,8 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
   Future<void> _endRecord() async {
     final movement = _labelMovement;
     final target = _target;
-    final skipDirection = _skipDirection(movement, threshold: 48);
+    final skipDirection =
+        _skipDirection(movement, threshold: _vinylSkipThreshold);
     final swipe = skipDirection != null;
     final swipeDown =
         _swiping && movement.dy >= 48 && movement.dx.abs() < movement.dy * .65;
@@ -431,7 +434,9 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
         final arm = _armDrag ?? (widget.playing ? 1.0 : 0.0);
         final previewDirection =
             _available ? _skipDirection(_labelMovement) : null;
-        final skipReady = _skipDirection(_labelMovement, threshold: 48) != null;
+        final skipReady =
+            _skipDirection(_labelMovement, threshold: _vinylSkipThreshold) !=
+                null;
         return AspectRatio(
             aspectRatio: VinylDeckGeometry.aspectRatio,
             child: Container(
@@ -590,7 +595,8 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                         child: IgnorePointer(
                           child: Opacity(
                             opacity:
-                                (_labelMovement.dx.abs() / 48).clamp(0.0, 1.0),
+                                (_labelMovement.dx.abs() / _vinylSkipThreshold)
+                                    .clamp(0.0, 1.0),
                             child: Transform.translate(
                               offset: MediaQuery.disableAnimationsOf(context)
                                   ? Offset.zero
@@ -598,7 +604,8 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                                       previewDirection *
                                           24 *
                                           (1 -
-                                              (_labelMovement.dx.abs() / 48)
+                                              (_labelMovement.dx.abs() /
+                                                      _vinylSkipThreshold)
                                                   .clamp(0.0, 1.0)),
                                       0),
                               child: _SkipPreview(

@@ -872,7 +872,7 @@ class _EngravedDuration extends StatelessWidget {
                     child: Text(
                       vinylTime(time),
                       style: const TextStyle(
-                        color: Color(0xFF33271D),
+                        color: Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1.2,

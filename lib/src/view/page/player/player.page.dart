@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
@@ -15,7 +14,6 @@ import 'package:listen2/src/widget/vinyl_deck.dart';
 import 'package:listen2/src/widget/playlist_picker.dart';
 import 'package:listen2/src/widget/player_tutorial.dart';
 import 'package:listen2/src/widget/record_shelf.dart';
-import 'package:listen2/src/widget/player_room_navigation.dart';
 import 'package:listen2/src/view/page/playlist/playlist.dart';
 import 'package:listen2/src/view/page/option/option.page.dart';
 
@@ -399,31 +397,6 @@ class _PlayerState extends ConsumerState<Player> {
       _ => null,
     };
     final textScaler = MediaQuery.textScalerOf(context);
-    final reservedHeight = 44 +
-        textScaler.scale(11) * 1.4 +
-        16 +
-        (widget.isHome
-            ? math.max(45, textScaler.scale(12) * 1.4 + 26) + 12
-            : 0) +
-        math.max(
-            82, textScaler.scale(14) * 1.4 + textScaler.scale(10) * 2.8 + 29) +
-        textScaler.scale(12) * 3.7 +
-        8 +
-        textScaler.scale(24) * 2.7 +
-        10 +
-        textScaler.scale(15) * 1.4 +
-        14 +
-        12;
-    // Reserve room for the controls and track info while retaining a usable touch size.
-    final deckWidth = math.min(
-        460.0,
-        math.max(
-            260.0,
-            (MediaQuery.sizeOf(context).height -
-                    MediaQuery.paddingOf(context).vertical -
-                    68 -
-                    reservedHeight) *
-                VinylDeckGeometry.aspectRatio));
     final queue = track == null
         ? <String>[]
         : ref.watch(currentPlaylistNotifierProvider).playlist;
@@ -529,54 +502,44 @@ class _PlayerState extends ConsumerState<Player> {
                                     letterSpacing: 2)),
                           ]),
                           const SizedBox(height: 16),
-                          if (widget.isHome) ...[
-                            PlayerRoomNavigation(
-                              onSearch: () => _openSidePage(-1),
-                              onSettings: () => _openSidePage(1),
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-                          SizedBox(
-                              width: deckWidth,
-                              child: VinylDeck(
-                                  playing: deckPlaying,
-                                  position: state.now,
-                                  duration: state.length,
-                                  enabled: track != null,
-                                  busy: _busy || state.loading,
-                                  unavailableDirection: _unavailableDirection,
-                                  previousTrack: previous,
-                                  nextTrack: next,
-                                  canSkipPrevious: index > 0,
-                                  canSkipNext:
-                                      index >= 0 && index + 1 < queue.length,
-                                  cover: const CurrentTrackCover(
-                                      width: double.infinity,
-                                      height: double.infinity,
-                                      fit: BoxFit.cover),
-                                  onArmChanged: _moveArm,
-                                  onSkip: _skip,
-                                  onLabelLongPress: _showPlaylists,
-                                  onLabelSwipeUp: _showQueue,
-                                  onLabelSwipeDown: _showSavePlaylists,
-                                  onSeek: _seek,
-                                  onScrubStart: _beginScrub,
-                                  onScrubCancel: () =>
-                                      unawaited(_cancelScrub()),
-                                  onInteraction: (interaction) {
-                                    final key =
-                                        interaction == VinylInteraction.scrub
-                                            ? 'grooves'
-                                            : 'skip';
-                                    if (!seenHints.contains(key)) {
-                                      setState(() => _contextHint = key);
-                                    }
-                                  },
-                                  onScrubChanged: (value) {
-                                    if (mounted) {
-                                      setState(() => _scrubbing = value);
-                                    }
-                                  })),
+                          VinylDeck(
+                              playing: deckPlaying,
+                              position: state.now,
+                              duration: state.length,
+                              enabled: track != null,
+                              busy: _busy || state.loading,
+                              unavailableDirection: _unavailableDirection,
+                              previousTrack: previous,
+                              nextTrack: next,
+                              canSkipPrevious: index > 0,
+                              canSkipNext:
+                                  index >= 0 && index + 1 < queue.length,
+                              cover: const CurrentTrackCover(
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  fit: BoxFit.cover),
+                              onArmChanged: _moveArm,
+                              onSkip: _skip,
+                              onLabelLongPress: _showPlaylists,
+                              onLabelSwipeUp: _showQueue,
+                              onLabelSwipeDown: _showSavePlaylists,
+                              onSeek: _seek,
+                              onScrubStart: _beginScrub,
+                              onScrubCancel: () => unawaited(_cancelScrub()),
+                              onInteraction: (interaction) {
+                                final key =
+                                    interaction == VinylInteraction.scrub
+                                        ? 'grooves'
+                                        : 'skip';
+                                if (!seenHints.contains(key)) {
+                                  setState(() => _contextHint = key);
+                                }
+                              },
+                              onScrubChanged: (value) {
+                                if (mounted) {
+                                  setState(() => _scrubbing = value);
+                                }
+                              }),
                           const SizedBox(height: 12),
                           RecordShelf(
                             count: queue.length,

@@ -1096,17 +1096,13 @@ void main() {
   });
 
   testWidgets(
-      'paper catalog and settings plaque open their pages without swiping',
+      'home record keeps its original width without visible side-page entries',
       (tester) async {
     await pumpPage(tester, const Player(isHome: true));
-    await tester.tap(find.byKey(const ValueKey('player-search-entry')));
-    await tester.pumpAndSettle();
-    expect(find.byType(Search), findsOneWidget);
-    await tester.tap(find.byTooltip('返回'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('player-settings-entry')));
-    await tester.pumpAndSettle();
-    expect(find.text('背景外观'), findsOneWidget);
+    expect(tester.getSize(find.byType(VinylDeck)).width, 288);
+    expect(find.byKey(const ValueKey('player-search-entry')), findsNothing);
+    expect(find.byKey(const ValueKey('player-settings-entry')), findsNothing);
+    expect(find.text('找音乐'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

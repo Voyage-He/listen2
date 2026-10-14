@@ -44,6 +44,7 @@ void main() {
       VoidCallback? longPress,
       VoidCallback? swipeUp,
       VoidCallback? swipeDown,
+      Duration position = const Duration(seconds: 45),
       Duration length = const Duration(minutes: 3),
       Future<void> Function(bool)? arm,
       Future<void> Function(Duration)? seek,
@@ -68,7 +69,7 @@ void main() {
               onLabelLongPress: longPress,
               onLabelSwipeUp: swipeUp,
               onLabelSwipeDown: swipeDown,
-              position: const Duration(seconds: 45),
+              position: position,
               duration: length,
               cover: const ColoredBox(color: vinylGold),
               onArmChanged: arm ?? (_) async {},
@@ -381,6 +382,61 @@ void main() {
     await drag.up();
     await tester.pumpAndSettle();
     expect(moves, [true]);
+  });
+
+  testWidgets(
+      'needle entry into the circular record snaps at every playback position',
+      (tester) async {
+    for (final (position, outside, inside) in [
+      (Duration.zero, .84, .88),
+      (const Duration(seconds: 45), .64, .68),
+      (const Duration(minutes: 3), .36, .4),
+    ]) {
+      final moves = <bool>[];
+      await pumpDeck(tester,
+          position: position, arm: (value) async => moves.add(value));
+      final rect = tester.getRect(find.byType(VinylDeck));
+      final geometry = VinylDeckGeometry(rect.size);
+      final progress =
+          position.inMilliseconds / const Duration(minutes: 3).inMilliseconds;
+      final radius = geometry.record.width / 2;
+      final outsideNeedle = geometry.needleTip(outside, progress, lifted: true);
+      final insideNeedle = geometry.needleTip(inside, progress, lifted: true);
+      expect(geometry.record.contains(outsideNeedle), isTrue,
+          reason:
+              'A corner of the bounding box is still outside the circular record');
+      expect((outsideNeedle - geometry.record.center).distance,
+          greaterThan(radius));
+      expect(
+          (insideNeedle - geometry.record.center).distance, lessThan(radius));
+      final drag = await tester.startGesture(rect.topLeft + geometry.parkedTip);
+      await tester.pump(vinylArmGrabDelay);
+      await drag.moveTo(rect.topLeft + geometry.tip(outside, progress));
+      await tester.pump();
+      expect(find.text('松手落针播放'), findsNothing);
+      await drag.moveTo(rect.topLeft + geometry.tip(inside, progress));
+      await tester.pump();
+      expect(find.text('松手落针播放'), findsOneWidget);
+      expect(moves, isEmpty);
+      await drag.up();
+      await tester.pumpAndSettle();
+      expect(moves, [true]);
+
+      final withdrawn =
+          await tester.startGesture(rect.topLeft + geometry.parkedTip);
+      await tester.pump(vinylArmGrabDelay);
+      await withdrawn.moveTo(rect.topLeft + geometry.tip(inside, progress));
+      await tester.pump();
+      expect(find.text('松手落针播放'), findsOneWidget);
+      await withdrawn.moveTo(rect.topLeft + geometry.tip(outside, progress));
+      await tester.pump();
+      expect(find.text('松手落针播放'), findsNothing);
+      await withdrawn.up();
+      await tester.pumpAndSettle();
+      expect(moves, [true],
+          reason: 'Moving the needle back outside must cancel playback');
+      expect(tester.takeException(), isNull);
+    }
   });
 
   testWidgets(

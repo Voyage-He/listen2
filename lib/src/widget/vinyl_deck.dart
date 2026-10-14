@@ -45,6 +45,16 @@ class VinylDeckGeometry {
     return pivot + Offset(math.cos(angle), math.sin(angle)) * armLength;
   }
 
+  Offset needleTip(double lowered, double progress, {bool lifted = false}) =>
+      tip(lowered, progress) + Offset(0, lifted ? -5 : 0);
+
+  bool isNeedleOnRecord(double lowered, double progress,
+      {bool lifted = false}) {
+    final offset = needleTip(lowered, progress, lifted: lifted) - record.center;
+    final radius = record.width / 2;
+    return offset.distanceSquared <= radius * radius;
+  }
+
   Offset elbow(Offset tip) {
     final vector = tip - pivot;
     final normal = Offset(-vector.dy, vector.dx) / vector.distance;
@@ -227,16 +237,14 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
 
   void _dragArm(Offset position, VinylDeckGeometry geometry, double progress) {
     final lowered = geometry.loweredAt(position, progress);
-    // Hysteresis holds the snap through small finger movements.
-    final snap = _armSnap == true && lowered >= .76
+    // Use the visible needle and the circular record, rather than an angle target.
+    final snap = geometry.isNeedleOnRecord(lowered, progress, lifted: true)
         ? true
         : _armSnap == false && lowered <= .24
             ? false
-            : lowered >= .84
-                ? true
-                : lowered <= .16
-                    ? false
-                    : null;
+            : lowered <= .16
+                ? false
+                : null;
     if (snap != null && snap != _armSnap) HapticFeedback.selectionClick();
     setState(() {
       _armSnap = snap;
@@ -581,15 +589,6 @@ class _VinylDeckState extends State<VinylDeck> with TickerProviderStateMixin {
                           ),
                         ),
                       ),
-                    if (_armHeld)
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: _ArmLandingPainter(
-                                geometry, progress, _armSnap),
-                          ),
-                        ),
-                      ),
                     Positioned.fill(
                         key: const ValueKey('tonearm-surface'),
                         child: TweenAnimationBuilder<double>(
@@ -853,36 +852,6 @@ class _SkipPreview extends StatelessWidget {
       ),
     );
   }
-}
-
-class _ArmLandingPainter extends CustomPainter {
-  const _ArmLandingPainter(this.geometry, this.progress, this.snap);
-  final VinylDeckGeometry geometry;
-  final double progress;
-  final bool? snap;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (final lowered in [false, true]) {
-      final tip = geometry.tip(lowered ? 1 : 0, progress);
-      final selected = snap == lowered;
-      canvas.drawCircle(tip, 22,
-          Paint()..color = vinylGold.withOpacity(selected ? .23 : .08));
-      canvas.drawCircle(
-          tip,
-          22,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = selected ? 2 : 1
-            ..color = vinylGold.withOpacity(selected ? .9 : .45));
-    }
-  }
-
-  @override
-  bool shouldRepaint(_ArmLandingPainter oldDelegate) =>
-      geometry.size != oldDelegate.geometry.size ||
-      progress != oldDelegate.progress ||
-      snap != oldDelegate.snap;
 }
 
 class _GlassTimeBubble extends StatelessWidget {
@@ -1231,7 +1200,8 @@ class _TonearmPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     _size = size;
     final pivot = _armPivot(size);
-    final tip = _armTip(size, lowered, progress) + Offset(0, lifted ? -5 : 0);
+    final tip =
+        VinylDeckGeometry(size).needleTip(lowered, progress, lifted: lifted);
     final elbow = _armElbow(size, tip);
     final armEnd = tip - (tip - elbow) / (tip - elbow).distance * 20;
     final path = Path()
@@ -1275,15 +1245,6 @@ class _TonearmPainter extends CustomPainter {
                   colors: [Color(0xFFE6D7B6), Color(0xFF97815A)])
               .createShader(Rect.fromCircle(center: pivot, radius: 12)));
     canvas.drawCircle(pivot, 4, Paint()..color = const Color(0xFF655A42));
-    if (lifted) {
-      canvas.drawCircle(
-          tip,
-          16,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5
-            ..color = vinylGold.withOpacity(.8));
-    }
     canvas.save();
     canvas.translate(tip.dx + (lifted ? 7 : 4), tip.dy + (lifted ? 12 : 6));
     canvas.rotate(_cartridgeAngle(size, tip));
@@ -1314,7 +1275,8 @@ class _TonearmPainter extends CustomPainter {
   bool? hitTest(Offset position) {
     if (_size == null) return false;
     final pivot = _armPivot(_size!);
-    final tip = _armTip(_size!, lowered, progress) + Offset(0, lifted ? -5 : 0);
+    final tip =
+        VinylDeckGeometry(_size!).needleTip(lowered, progress, lifted: lifted);
     final elbow = _armElbow(_size!, tip);
     double distanceToSegment(Offset start, Offset end) {
       final vector = end - start;
